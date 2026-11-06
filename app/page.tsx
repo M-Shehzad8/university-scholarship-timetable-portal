@@ -1,8 +1,14 @@
+import Link from "next/link";
+
+import { Badge } from "@/components/ui/badge";
+import { buttonStyles } from "@/components/ui/button";
+
 const modules = [
   {
     name: "Scholarships",
+    href: "/scholarships",
     summary:
-      "Browse scholarship opportunities maintained by authorised staff, review eligibility and required documents, and keep track of application deadlines.",
+      "Browse opportunities maintained by authorised staff, review eligibility and required documents, and keep track of application deadlines.",
     points: [
       "Search and category filters",
       "Deadlines and official application links",
@@ -11,6 +17,7 @@ const modules = [
   },
   {
     name: "Timetable",
+    href: "/timetable",
     summary:
       "View class schedules for a batch or section, with built-in checks that keep teachers, batches, and rooms free from overlapping classes.",
     points: [
@@ -21,9 +28,15 @@ const modules = [
   },
 ];
 
+const boundaries = [
+  "No scholarship scraping or automatic applications",
+  "No automatic generation of the complete timetable",
+  "No attendance, fees, hostel, or full ERP features",
+];
+
 export default function Home() {
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-4">
           <div className="flex items-center gap-3">
@@ -42,18 +55,19 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
-            Foundation release
-          </span>
+          <Link
+            href="/dashboard"
+            className={buttonStyles({ variant: "secondary", size: "sm" })}
+          >
+            Open portal preview
+          </Link>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-16 sm:py-24">
-        <div className="max-w-3xl">
-          <p className="text-sm font-semibold tracking-wider text-emerald-700 uppercase dark:text-emerald-400">
-            Scholarship and academic timetable portal
-          </p>
-          <h1 className="mt-4 text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl dark:text-zinc-50">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-14 sm:py-20">
+        <section className="max-w-3xl">
+          <Badge tone="success">Phase 1 foundation</Badge>
+          <h1 className="mt-5 text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl dark:text-zinc-50">
             Two essential academic services, in one place.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-600 dark:text-zinc-400">
@@ -61,21 +75,48 @@ export default function Home() {
             opportunities and follow their class schedules, while authorised
             staff maintain accurate information for both.
           </p>
-        </div>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Link href="/dashboard" className={buttonStyles({ size: "lg" })}>
+              Open portal preview
+            </Link>
+            <Link
+              href="/scholarships"
+              className={buttonStyles({ variant: "secondary", size: "lg" })}
+            >
+              Explore the modules
+            </Link>
+          </div>
+        </section>
 
-        <section aria-labelledby="modules-heading" className="mt-14">
-          <h2 id="modules-heading" className="sr-only">
-            Portal modules
-          </h2>
-          <div className="grid gap-6 md:grid-cols-2">
+        <section aria-labelledby="modules-heading" className="mt-16">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2
+                id="modules-heading"
+                className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50"
+              >
+                The two modules
+              </h2>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                Shared authentication, dashboards, and data foundation; distinct
+                academic workflows.
+              </p>
+            </div>
+            <Badge tone="neutral">Scope locked</Badge>
+          </div>
+
+          <div className="mt-6 grid gap-6 md:grid-cols-2">
             {modules.map((module) => (
               <article
                 key={module.name}
                 className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
               >
-                <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-                  {module.name}
-                </h3>
+                <div className="flex items-start justify-between gap-4">
+                  <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                    {module.name}
+                  </h3>
+                  <Badge tone="info">Preview</Badge>
+                </div>
                 <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
                   {module.summary}
                 </p>
@@ -93,16 +134,52 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
+                <Link
+                  href={module.href}
+                  className="mt-5 inline-flex text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+                >
+                  Open {module.name.toLowerCase()} preview{" "}
+                  <span aria-hidden="true" className="ml-1">
+                    →
+                  </span>
+                </Link>
               </article>
             ))}
           </div>
+        </section>
+
+        <section
+          aria-labelledby="boundaries-heading"
+          className="mt-12 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900"
+        >
+          <h2
+            id="boundaries-heading"
+            className="text-lg font-semibold text-zinc-900 dark:text-zinc-50"
+          >
+            A deliberately focused project
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+            The portal is a student academic services application, not a
+            university ERP. Keeping the boundaries clear makes the system
+            reliable and explainable.
+          </p>
+          <ul className="mt-5 grid gap-3 sm:grid-cols-3">
+            {boundaries.map((boundary) => (
+              <li
+                key={boundary}
+                className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-6 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-300"
+              >
+                {boundary}
+              </li>
+            ))}
+          </ul>
         </section>
       </main>
 
       <footer className="border-t border-zinc-200 px-6 py-6 dark:border-zinc-800">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between dark:text-zinc-400">
           <p>University Scholarship and Academic Timetable Portal</p>
-          <p>Foundation release · Phase 0</p>
+          <p>Foundation release · Phase 1</p>
         </div>
       </footer>
     </div>

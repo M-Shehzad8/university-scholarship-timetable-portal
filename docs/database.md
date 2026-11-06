@@ -1,15 +1,33 @@
 # Database Design
 
-> **Status:** preliminary. The schema, field types, and constraints are finalised in Phase 1. This document defines the intended model so later work has a single reference point.
+> **Status:** finalised in Phase 1. The Prisma schema is the executable source of truth; this document explains the model, constraints, and rules in plain language.
 
-## Technology
+## 1. Technology
 
-- **Database:** PostgreSQL
-- **ORM and migrations:** selected in Phase 1 (Prisma or Drizzle, then used consistently)
-- **Identifiers:** stable primary keys suitable for URLs and foreign keys
-- **Timestamps:** creation and update timestamps on mutable records
+| Area             | Decision                                                          |
+| ---------------- | ----------------------------------------------------------------- |
+| Database         | PostgreSQL 15 or newer                                            |
+| ORM              | Prisma 7.10.1                                                     |
+| Driver adapter   | `@prisma/adapter-pg` with `pg`                                    |
+| Schema           | `prisma/schema.prisma`                                            |
+| Config           | `prisma.config.ts`                                                |
+| Migrations       | `prisma/migrations/`                                              |
+| Generated client | `lib/generated/prisma/` (ignored by Git, recreated by generation) |
+| Shared client    | `lib/db/prisma.ts`                                                |
 
-## Planned entities
+The schema uses the `prisma-client` generator. The generated TypeScript client must be produced with `npm run db:generate`; `npm install` and `npm run build` also regenerate it.
+
+## 2. Conventions
+
+- **Primary keys:** `cuid()` strings, stable in URLs and foreign keys.
+- **Timestamps:** `createdAt` defaults to now; mutable records also have `updatedAt`.
+- **Calendar dates:** scholarship deadlines use PostgreSQL `DATE`.
+- **Class times:** stored as `SMALLINT` minutes from midnight (for example, `540` is 09:00). This makes interval comparison a simple numeric operation and avoids time-zone conversion.
+- **End-exclusive intervals:** a class from 09:00 to 10:00 is stored as `startMinute = 540`, `endMinute = 600`. The next class may start at 600.
+- **Enums:** role, scholarship status, day of week, and notification type are database enums.
+- **Deletion:** restrictive by default for academic reference data; cascading only for owned bookmark and notification rows.
+
+## 3. Entity relationship model
 
 ```mermaid
 erDiagram
@@ -17,73 +35,285 @@ erDiagram
     SCHOLARSHIP ||--o{ SAVED_SCHOLARSHIP : bookmarked
     USER ||--o{ NOTIFICATION : receives
 
-    BATCH ||--o{ TIMETABLE_ENTRY : attends
+    DEPARTMENT ||--o{ USER : includes
+    BATCH ||--o{ USER : has
+    DEPARTMENT ||--o{ COURSE : owns
+    DEPARTMENT ||--o{ TEACHER : employs
+    DEPARTMENT ||--o{ BATCH : contains
+    DEPARTMENT ||--o{ ROOM : contains
+
     COURSE ||--o{ TIMETABLE_ENTRY : scheduled
+    BATCH ||--o{ TIMETABLE_ENTRY : attends
     TEACHER ||--o{ TIMETABLE_ENTRY : teaches
     ROOM ||--o{ TIMETABLE_ENTRY : hosts
-    DEPARTMENT ||--o{ ROOM : contains
-    DEPARTMENT ||--o{ TEACHER : employs
 ```
 
-### Core tables
+`User.batchId` and `User.departmentId` are optional. A student is expected to have a batch; a staff or coordinator account may have a department. The relation is optional at the database level so an account can be created before assignment.
 
-| Entity             | Purpose                      | Key fields (preliminary)                                                                                                           |
-| ------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `User`             | Portal account and role      | id, name, email, passwordHash, role, batchId?, createdAt, updatedAt                                                                |
-| `Scholarship`      | Maintained opportunity       | id, title, provider, description, eligibility, benefits, requiredDocuments, deadline, applicationUrl, status, createdAt, updatedAt |
-| `SavedScholarship` | Student bookmark             | userId, scholarshipId, createdAt (unique pair)                                                                                     |
-| `Notification`     | In-app message               | id, userId, type, message, isRead, createdAt                                                                                       |
-| `Department`       | Room and staff ownership     | id, name, code                                                                                                                     |
-| `Course`           | Subject taught               | id, code, title, departmentId                                                                                                      |
-| `Teacher`          | Teaching staff               | id, name, email, departmentId                                                                                                      |
-| `Batch`            | Programme cohort and section | id, name, section, departmentId                                                                                                    |
-| `Room`             | Physical teaching space      | id, roomNumber, building, capacity, departmentId                                                                                   |
-| `TimetableEntry`   | Scheduled class              | id, courseId, batchId, teacherId, roomId, dayOfWeek, startTime, endTime, createdAt, updatedAt                                      |
+## 4. Enumerations
 
-Final field names and nullability may change once use cases are written. Any change must be recorded here and in the migration that implements it.
+| Enum                | Values                                                                                                                             |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `Role`              | `STUDENT`, `STAFF`, `COORDINATOR`                                                                                                  |
+| `ScholarshipStatus` | `DRAFT`, `PUBLISHED`, `ARCHIVED`, `EXPIRED`                                                                                        |
+| `DayOfWeek`         | `MONDAY` through `SUNDAY`                                                                                                          |
+| `NotificationType`  | `SCHOLARSHIP_PUBLISHED`, `SCHOLARSHIP_DEADLINE`, `SCHOLARSHIP_EXPIRED`, `TIMETABLE_CHANGED`, `ROOM_ASSIGNED`, `TIMETABLE_CONFLICT` |
 
-## Invariants
+## 5. Tables
 
-### Scholarship state
+### 5.1 `User`
 
-- A scholarship is **active** when its status is published and its deadline has not passed.
-- Expired scholarships remain readable for reference but are excluded from default student listings.
-- Deleting a scholarship must respect saved-bookmark references (cascade or explicit cleanup, decided in Phase 1).
+| Column         | Type           | Null | Rules                                                  |
+| -------------- | -------------- | ---- | ------------------------------------------------------ |
+| `id`           | `TEXT`         | No   | Primary key, `cuid()`                                  |
+| `name`         | `TEXT`         | No   | Display name                                           |
+| `email`        | `TEXT`         | No   | Unique; compared case-insensitively by the application |
+| `passwordHash` | `TEXT`         | No   | One-way hash only                                      |
+| `role`         | `Role`         | No   | Defaults to `STUDENT`                                  |
+| `isActive`     | `BOOLEAN`      | No   | Defaults to `true`                                     |
+| `batchId`      | `TEXT`         | Yes  | FK to `Batch`; `ON DELETE SET NULL`                    |
+| `departmentId` | `TEXT`         | Yes  | FK to `Department`; `ON DELETE SET NULL`               |
+| `createdAt`    | `TIMESTAMP(3)` | No   | Defaults to now                                        |
+| `updatedAt`    | `TIMESTAMP(3)` | No   | Updated automatically by Prisma                        |
 
-### Timetable overlap
+Indexes: `role`, `batchId`, `departmentId`; unique email.
 
-Two entries conflict when they share the same day and their intervals overlap:
+### 5.2 `Scholarship`
+
+| Column              | Type                | Null | Rules                              |
+| ------------------- | ------------------- | ---- | ---------------------------------- |
+| `id`                | `TEXT`              | No   | Primary key                        |
+| `title`             | `TEXT`              | No   | Required                           |
+| `provider`          | `TEXT`              | No   | Required                           |
+| `category`          | `TEXT`              | Yes  | Optional filter value              |
+| `description`       | `TEXT`              | No   | Full description                   |
+| `eligibility`       | `TEXT`              | No   | Eligibility text                   |
+| `benefits`          | `TEXT`              | No   | Benefits/amount where provided     |
+| `requiredDocuments` | `TEXT`              | No   | Newline-separated or prose list    |
+| `deadline`          | `DATE`              | No   | Inclusive calendar deadline        |
+| `applicationUrl`    | `TEXT`              | No   | Official external application link |
+| `status`            | `ScholarshipStatus` | No   | Defaults to `DRAFT`                |
+| `createdAt`         | `TIMESTAMP(3)`      | No   | Defaults to now                    |
+| `updatedAt`         | `TIMESTAMP(3)`      | No   | Updated automatically              |
+
+Indexes: `(status, deadline)` for active listings; `category` for filters.
+
+### 5.3 `SavedScholarship`
+
+| Column          | Type           | Null | Rules                                    |
+| --------------- | -------------- | ---- | ---------------------------------------- |
+| `userId`        | `TEXT`         | No   | FK to `User`, `ON DELETE CASCADE`        |
+| `scholarshipId` | `TEXT`         | No   | FK to `Scholarship`, `ON DELETE CASCADE` |
+| `savedAt`       | `TIMESTAMP(3)` | No   | Defaults to now                          |
+
+Primary key: `(userId, scholarshipId)`, which prevents duplicate bookmarks. Additional index on `scholarshipId` supports reverse lookups.
+
+### 5.4 `Notification`
+
+| Column      | Type               | Null | Rules                             |
+| ----------- | ------------------ | ---- | --------------------------------- |
+| `id`        | `TEXT`             | No   | Primary key                       |
+| `userId`    | `TEXT`             | No   | FK to `User`, `ON DELETE CASCADE` |
+| `type`      | `NotificationType` | No   | Required                          |
+| `title`     | `TEXT`             | No   | Short summary                     |
+| `message`   | `TEXT`             | No   | Full message                      |
+| `isRead`    | `BOOLEAN`          | No   | Defaults to `false`               |
+| `readAt`    | `TIMESTAMP(3)`     | Yes  | Set when read                     |
+| `createdAt` | `TIMESTAMP(3)`     | No   | Defaults to now                   |
+
+Index: `(userId, isRead, createdAt)` for the unread inbox.
+
+### 5.5 `Department`
+
+| Column      | Type           | Null | Rules                 |
+| ----------- | -------------- | ---- | --------------------- |
+| `id`        | `TEXT`         | No   | Primary key           |
+| `name`      | `TEXT`         | No   | Unique                |
+| `code`      | `TEXT`         | No   | Unique                |
+| `createdAt` | `TIMESTAMP(3)` | No   | Defaults to now       |
+| `updatedAt` | `TIMESTAMP(3)` | No   | Updated automatically |
+
+### 5.6 `Course`
+
+| Column         | Type           | Null | Rules                                    |
+| -------------- | -------------- | ---- | ---------------------------------------- |
+| `id`           | `TEXT`         | No   | Primary key                              |
+| `code`         | `TEXT`         | No   | Unique within its department             |
+| `title`        | `TEXT`         | No   | Course title                             |
+| `departmentId` | `TEXT`         | No   | FK to `Department`, `ON DELETE RESTRICT` |
+| `createdAt`    | `TIMESTAMP(3)` | No   | Defaults to now                          |
+| `updatedAt`    | `TIMESTAMP(3)` | No   | Updated automatically                    |
+
+Unique: `(departmentId, code)`.
+
+### 5.7 `Teacher`
+
+| Column         | Type           | Null | Rules                                    |
+| -------------- | -------------- | ---- | ---------------------------------------- |
+| `id`           | `TEXT`         | No   | Primary key                              |
+| `name`         | `TEXT`         | No   | Display name                             |
+| `email`        | `TEXT`         | Yes  | Unique within department when present    |
+| `departmentId` | `TEXT`         | No   | FK to `Department`, `ON DELETE RESTRICT` |
+| `createdAt`    | `TIMESTAMP(3)` | No   | Defaults to now                          |
+| `updatedAt`    | `TIMESTAMP(3)` | No   | Updated automatically                    |
+
+Unique: `(departmentId, email)`. PostgreSQL permits multiple `NULL` values, so teachers without email do not collide.
+
+### 5.8 `Batch`
+
+| Column         | Type           | Null | Rules                                    |
+| -------------- | -------------- | ---- | ---------------------------------------- |
+| `id`           | `TEXT`         | No   | Primary key                              |
+| `name`         | `TEXT`         | No   | Programme/cohort label                   |
+| `section`      | `TEXT`         | No   | Section label                            |
+| `departmentId` | `TEXT`         | No   | FK to `Department`, `ON DELETE RESTRICT` |
+| `createdAt`    | `TIMESTAMP(3)` | No   | Defaults to now                          |
+| `updatedAt`    | `TIMESTAMP(3)` | No   | Updated automatically                    |
+
+Unique: `(departmentId, name, section)`.
+
+### 5.9 `Room`
+
+| Column         | Type           | Null | Rules                                    |
+| -------------- | -------------- | ---- | ---------------------------------------- |
+| `id`           | `TEXT`         | No   | Primary key                              |
+| `roomNumber`   | `TEXT`         | No   | Unique within its department             |
+| `building`     | `TEXT`         | Yes  | Optional building label                  |
+| `departmentId` | `TEXT`         | No   | FK to `Department`, `ON DELETE RESTRICT` |
+| `createdAt`    | `TIMESTAMP(3)` | No   | Defaults to now                          |
+| `updatedAt`    | `TIMESTAMP(3)` | No   | Updated automatically                    |
+
+Unique: `(departmentId, roomNumber)`. Deterministic assignment order is `roomNumber ASC, id ASC`.
+
+### 5.10 `TimetableEntry`
+
+| Column        | Type           | Null | Rules                                       |
+| ------------- | -------------- | ---- | ------------------------------------------- |
+| `id`          | `TEXT`         | No   | Primary key                                 |
+| `courseId`    | `TEXT`         | No   | FK to `Course`, `ON DELETE RESTRICT`        |
+| `batchId`     | `TEXT`         | No   | FK to `Batch`, `ON DELETE RESTRICT`         |
+| `teacherId`   | `TEXT`         | No   | FK to `Teacher`, `ON DELETE RESTRICT`       |
+| `roomId`      | `TEXT`         | No   | FK to `Room`, `ON DELETE RESTRICT`          |
+| `dayOfWeek`   | `DayOfWeek`    | No   | Recurring weekday                           |
+| `startMinute` | `SMALLINT`     | No   | Minutes from midnight, `0–1439`             |
+| `endMinute`   | `SMALLINT`     | No   | Exclusive end, `1–1440`, greater than start |
+| `createdAt`   | `TIMESTAMP(3)` | No   | Defaults to now                             |
+| `updatedAt`   | `TIMESTAMP(3)` | No   | Updated automatically                       |
+
+The initial migration also adds database check constraints for the minute range and `startMinute < endMinute`.
+
+Indexes:
+
+- `(dayOfWeek, startMinute, endMinute)` for daily queries.
+- `(teacherId, dayOfWeek, startMinute, endMinute)` for teacher conflicts.
+- `(batchId, dayOfWeek, startMinute, endMinute)` for batch conflicts.
+- `(roomId, dayOfWeek, startMinute, endMinute)` for room conflicts and availability.
+
+## 6. Scholarship rules
+
+### 6.1 Effective state
+
+A scholarship is **active** when:
 
 ```text
-existingStart < newEnd AND existingEnd > newStart
+status = PUBLISHED
+AND deadline >= today
 ```
 
-Apply this check separately for:
+`deadline` is a calendar date and is inclusive through the end of that date. A published record whose date has passed is excluded from active results even if its stored status is still `PUBLISHED`. Staff can also set `EXPIRED` explicitly.
 
-- teacher;
-- batch/section;
-- room.
+### 6.2 Visibility
 
-The check is enforced in one shared domain function and called before every create or update. Database constraints provide defence in depth where practical, but the application rule is the primary explanation.
+| Status      | Student default listing   | Student direct detail | Staff management |
+| ----------- | ------------------------- | --------------------- | ---------------- |
+| `DRAFT`     | No                        | No                    | Yes              |
+| `PUBLISHED` | Yes, if not past deadline | Yes                   | Yes              |
+| `ARCHIVED`  | No                        | No                    | Yes              |
+| `EXPIRED`   | No                        | Read-only reference   | Yes              |
 
-### Automatic room assignment
+### 6.3 Deadlines soon
 
-- Consider only rooms belonging to the relevant department.
-- Exclude rooms with an overlapping timetable entry.
-- Order candidates deterministically (for example, by room number).
-- Assign the first free room, or return an explicit "no room available" result.
+A scholarship is “expiring soon” when it is active and its deadline is within the next 14 calendar days, inclusive of today. The value is derived, not stored.
 
-## Indexing and performance
+### 6.4 Bookmarks
 
-Indexes will be chosen from actual query patterns in Phase 1, with likely candidates:
+- A student has at most one bookmark per scholarship.
+- Only active scholarships can be newly saved.
+- Removing a bookmark deletes only that pair.
+- Deleting a scholarship cascades its bookmark rows.
+- An expired saved scholarship remains visible in the student's saved list with an expired marker.
 
-- `TimetableEntry(dayOfWeek, startTime, endTime)` for overlap queries.
-- `TimetableEntry(teacherId, dayOfWeek)`, `TimetableEntry(batchId, dayOfWeek)`, `TimetableEntry(roomId, dayOfWeek)`.
-- `Scholarship(status, deadline)` for active listings.
-- `SavedScholarship(userId)` and a unique `(userId, scholarshipId)` pair.
+## 7. Timetable rules
 
-## Migrations and seed data
+### 7.1 Overlap test
 
-- Every schema change is delivered as a committed migration.
-- Seed data is limited to development fixtures: roles, departments, sample rooms, sample courses, and sample scholarships.
+Two entries conflict when all of the following are true:
+
+1. They share the same `dayOfWeek`.
+2. They share the same teacher, batch, or room, depending on the check.
+3. `existing.startMinute < new.endMinute`.
+4. `existing.endMinute > new.startMinute`.
+
+The end minute is exclusive. On update, the current entry is excluded from the query.
+
+### 7.2 Department consistency
+
+- A course, teacher, batch, and room each belong to one department.
+- All four selected references on an entry must belong to the same department.
+- Automatic assignment uses the batch's department.
+- A referenced reference-data row cannot be deleted while an entry uses it.
+
+### 7.3 Automatic room assignment
+
+Algorithm:
+
+```text
+rooms = department rooms ordered by roomNumber ASC, id ASC
+freeRooms = rooms where no entry overlaps the selected day/interval
+if freeRooms is empty:
+    return NO_ROOM_AVAILABLE
+return freeRooms[0]
+```
+
+“Suitable” means owned by the department and free at the requested interval. Capacity scoring, distance, and optimisation are out of scope. The same input and data state always produce the same room.
+
+### 7.4 Time representation
+
+The UI accepts `HH:mm` and converts it to minutes:
+
+```text
+minutes = hours * 60 + minutes
+```
+
+The server validates `0 <= startMinute < endMinute <= 1440`. This avoids comparing formatted strings and removes daylight-saving/time-zone ambiguity from a recurring weekly schedule.
+
+## 8. Authorization boundaries
+
+| Data/action                      | Student | Staff | Coordinator |
+| -------------------------------- | ------- | ----- | ----------- |
+| Read active scholarships         | Yes     | Yes   | Yes         |
+| Save scholarships                | Yes     | No    | No          |
+| Maintain scholarships            | No      | Yes   | No          |
+| Maintain academic reference data | No      | Yes   | No          |
+| Create timetable entries         | No      | Yes   | No          |
+| Read own batch timetable         | Yes     | Yes   | Yes         |
+| Manage users and roles           | No      | No    | Yes         |
+| View operational reports         | No      | Yes   | Yes         |
+
+Implementation phases must re-check these rules on the server. The role matrix is a specification, not a UI-only rule.
+
+## 9. Migrations and seed data
+
+- The initial migration is `prisma/migrations/20261106150000_init/migration.sql`.
+- Apply migrations with `npm run db:migrate` when PostgreSQL is available.
+- Every later schema change must be delivered as a committed migration.
+- Development seed data should be limited to one department, sample rooms, sample courses, sample teachers, sample batches, one coordinator account, and a few demo scholarships.
 - Production starts with only the coordinator account created through a documented bootstrap step.
+- Seed data must not be inserted into production automatically.
+
+## 10. Deferred database decisions
+
+- Session storage representation is decided in Phase 2.
+- Audit/history tables are not required for the core scope.
+- Full-text search indexes are not required; ordinary search can use PostgreSQL `ILIKE` for the expected data volume.
+- PDF/export storage is not required.

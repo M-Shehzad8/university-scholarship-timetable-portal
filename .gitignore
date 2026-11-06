@@ -41,6 +41,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# learning reports are kept locally and are not committed
-/docs/reports/*
-!/docs/reports/.gitkeep
+# local-only planning and agent instructions
+/plan.md
+/AGENTS.md
+
+# local learning reports (not committed)
+/docs/reports/
+
+# generated Prisma client (recreated by `npm run db:generate`)
+/lib/generated/

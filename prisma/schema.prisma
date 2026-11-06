@@ -1,0 +1,222 @@
+// Prisma schema for the University Scholarship and Academic Timetable Portal.
+// The connection URL lives in prisma.config.ts so credentials never appear here.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  STUDENT
+  STAFF
+  COORDINATOR
+}
+
+enum ScholarshipStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+  EXPIRED
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum NotificationType {
+  SCHOLARSHIP_PUBLISHED
+  SCHOLARSHIP_DEADLINE
+  SCHOLARSHIP_EXPIRED
+  TIMETABLE_CHANGED
+  ROOM_ASSIGNED
+  TIMETABLE_CONFLICT
+}
+
+model User {
+  id           String  @id @default(cuid())
+  name         String
+  email        String  @unique
+  passwordHash String
+  role         Role    @default(STUDENT)
+  isActive     Boolean @default(true)
+
+  batchId      String?
+  departmentId String?
+
+  batch      Batch?      @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  savedScholarships SavedScholarship[]
+  notifications     Notification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+  @@index([batchId])
+  @@index([departmentId])
+}
+
+model Scholarship {
+  id                String            @id @default(cuid())
+  title             String
+  provider          String
+  category          String?
+  description       String            @db.Text
+  eligibility       String            @db.Text
+  benefits          String            @db.Text
+  requiredDocuments String            @db.Text
+  deadline          DateTime          @db.Date
+  applicationUrl    String
+  status            ScholarshipStatus @default(DRAFT)
+
+  savedBy SavedScholarship[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, deadline])
+  @@index([category])
+}
+
+model SavedScholarship {
+  userId        String
+  scholarshipId String
+  savedAt       DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scholarship Scholarship @relation(fields: [scholarshipId], references: [id], onDelete: Cascade)
+
+  @@id([userId, scholarshipId])
+  @@index([scholarshipId])
+}
+
+model Notification {
+  id      String           @id @default(cuid())
+  userId  String
+  type    NotificationType
+  title   String
+  message String           @db.Text
+  isRead  Boolean          @default(false)
+  readAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead, createdAt])
+}
+
+model Department {
+  id   String @id @default(cuid())
+  name String @unique
+  code String @unique
+
+  users   User[]
+  courses Course[]
+  teachers Teacher[]
+  batches Batch[]
+  rooms   Room[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Course {
+  id           String @id @default(cuid())
+  code         String
+  title        String
+  departmentId String
+
+  department Department       @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  entries    TimetableEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([departmentId, code])
+}
+
+model Teacher {
+  id           String  @id @default(cuid())
+  name         String
+  email        String?
+  departmentId String
+
+  department Department       @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  entries    TimetableEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([departmentId, email])
+}
+
+model Batch {
+  id           String @id @default(cuid())
+  name         String
+  section      String
+  departmentId String
+
+  department Department       @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  students   User[]
+  entries    TimetableEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([departmentId, name, section])
+}
+
+model Room {
+  id           String  @id @default(cuid())
+  roomNumber   String
+  building     String?
+  departmentId String
+
+  department Department       @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  entries    TimetableEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([departmentId, roomNumber])
+}
+
+model TimetableEntry {
+  id String @id @default(cuid())
+
+  courseId  String
+  batchId   String
+  teacherId String
+  roomId    String
+
+  dayOfWeek DayOfWeek
+  /// Minutes from midnight, so overlap checks are simple integer comparisons.
+  startMinute Int @db.SmallInt
+  /// Exclusive end of the class interval. Must be greater than startMinute.
+  endMinute   Int @db.SmallInt
+
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  batch   Batch   @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  room    Room    @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([dayOfWeek, startMinute, endMinute])
+  @@index([teacherId, dayOfWeek, startMinute, endMinute])
+  @@index([batchId, dayOfWeek, startMinute, endMinute])
+  @@index([roomId, dayOfWeek, startMinute, endMinute])
+}
