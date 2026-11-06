@@ -25,7 +25,7 @@ The schema uses the `prisma-client` generator. The generated TypeScript client m
 - **Class times:** stored as `SMALLINT` minutes from midnight (for example, `540` is 09:00). This makes interval comparison a simple numeric operation and avoids time-zone conversion.
 - **End-exclusive intervals:** a class from 09:00 to 10:00 is stored as `startMinute = 540`, `endMinute = 600`. The next class may start at 600.
 - **Enums:** role, scholarship status, day of week, and notification type are database enums.
-- **Deletion:** restrictive by default for academic reference data; cascading only for owned bookmark and notification rows.
+- **Deletion:** restrictive by default for academic reference data; cascading only for owned session, bookmark, and notification rows.
 
 ## 3. Entity relationship model
 
@@ -34,6 +34,7 @@ erDiagram
     USER ||--o{ SAVED_SCHOLARSHIP : saves
     SCHOLARSHIP ||--o{ SAVED_SCHOLARSHIP : bookmarked
     USER ||--o{ NOTIFICATION : receives
+    USER ||--o{ SESSION : owns
 
     DEPARTMENT ||--o{ USER : includes
     BATCH ||--o{ USER : has
@@ -209,6 +210,20 @@ Indexes:
 - `(batchId, dayOfWeek, startMinute, endMinute)` for batch conflicts.
 - `(roomId, dayOfWeek, startMinute, endMinute)` for room conflicts and availability.
 
+### 5.11 `Session`
+
+| Column      | Type           | Null | Rules                                    |
+| ----------- | -------------- | ---- | ---------------------------------------- |
+| `id`        | `TEXT`         | No   | Primary key                              |
+| `tokenHash` | `TEXT`         | No   | Unique HMAC-SHA256 hash of the raw token |
+| `userId`    | `TEXT`         | No   | FK to `User`, `ON DELETE CASCADE`        |
+| `expiresAt` | `TIMESTAMP(3)` | No   | Absolute expiry; seven days after login  |
+| `createdAt` | `TIMESTAMP(3)` | No   | Defaults to now                          |
+
+Indexes: unique `tokenHash`; `userId` for revoking all sessions of one user; `expiresAt` for future cleanup jobs.
+
+The raw session token exists only in the browser's HTTP-only cookie. The database never stores it, so a database read alone cannot be replayed as a login.
+
 ## 6. Scholarship rules
 
 ### 6.1 Effective state
@@ -305,15 +320,29 @@ Implementation phases must re-check these rules on the server. The role matrix i
 ## 9. Migrations and seed data
 
 - The initial migration is `prisma/migrations/20261106150000_init/migration.sql`.
+- The Phase 2 session table is added by `prisma/migrations/20261106190000_add_sessions/migration.sql`.
 - Apply migrations with `npm run db:migrate` when PostgreSQL is available.
 - Every later schema change must be delivered as a committed migration.
-- Development seed data should be limited to one department, sample rooms, sample courses, sample teachers, sample batches, one coordinator account, and a few demo scholarships.
+- `prisma/seed.ts` creates one CSE department, the `BCS-7A` batch, one coordinator, one staff account, one active student, and one inactive student. It is idempotent and uses `SEED_PASSWORD` from the environment.
+- Seed data is local development data. It must not be inserted into production automatically.
 - Production starts with only the coordinator account created through a documented bootstrap step.
-- Seed data must not be inserted into production automatically.
 
-## 10. Deferred database decisions
+## 10. Authentication storage
 
-- Session storage representation is decided in Phase 2.
+| Concern          | Decision                                                                   |
+| ---------------- | -------------------------------------------------------------------------- |
+| Password hashing | bcrypt, cost factor 12                                                     |
+| Session token    | 256 random bits, encoded with base64url                                    |
+| Token storage    | HMAC-SHA256 hash in `Session.tokenHash`; the raw token stays in the cookie |
+| Cookie           | HTTP-only, SameSite=Lax, path `/`, seven-day expiry, Secure in production  |
+| Logout           | Delete the matching `Session` row and clear the cookie                     |
+| Deactivation     | Delete every `Session` row for the user; login is also refused             |
+| Expiry           | Checked against `expiresAt` on every authenticated request                 |
+
+`SESSION_SECRET` is the HMAC pepper. It is required at request time and must be at least 32 characters. It is never sent to the browser.
+
+## 11. Deferred database decisions
+
 - Audit/history tables are not required for the core scope.
 - Full-text search indexes are not required; ordinary search can use PostgreSQL `ILIKE` for the expected data volume.
 - PDF/export storage is not required.

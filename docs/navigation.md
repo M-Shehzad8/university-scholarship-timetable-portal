@@ -1,6 +1,6 @@
 # Navigation and Dashboard Design
 
-> **Status:** Phase 1 foundation. The route shell, navigation groups, dashboard structure, and shared UI components exist. Authentication, live data, and role filtering arrive in later phases.
+> **Status:** Phase 2 complete. The portal requires authentication, navigation is filtered by role, dashboards show the signed-in user, and coordinators can manage accounts. The scholarship and timetable data remain placeholders until Phases 3 and 4.
 
 ## 1. Goals
 
@@ -11,29 +11,29 @@
 
 ## 2. Route map
 
-| Route           | Audience                          | Current Phase 1 state                   | Final purpose                                             |
-| --------------- | --------------------------------- | --------------------------------------- | --------------------------------------------------------- |
-| `/`             | Public overview                   | Public landing page                     | Explains the portal and links into the preview            |
-| `/dashboard`    | All authenticated roles           | Static dashboard structure              | Role-specific summaries and shortcuts                     |
-| `/scholarships` | Students; staff management        | Empty catalogue preview                 | Search, filter, detail, save, and staff maintenance       |
-| `/timetable`    | Students; staff/coordinator views | Empty schedule preview and rule summary | Weekly timetable, batch/teacher views, conflict checks    |
-| `/rooms`        | Staff and coordinator             | Empty room list preview                 | Department room records and availability                  |
-| `/reports`      | Staff and coordinator             | Report definition cards                 | Active/expiring scholarships, timetable, rooms, conflicts |
-| `/users`        | Coordinator                       | Role matrix preview                     | User, role, batch, and department management              |
-| `/login`        | Anonymous                         | Not built                               | Login form                                                |
+| Route           | Audience                          | Current state                               | Final purpose                                             |
+| --------------- | --------------------------------- | ------------------------------------------- | --------------------------------------------------------- |
+| `/`             | Public overview                   | Public landing page                         | Explains the portal and links to sign in                  |
+| `/login`        | Anonymous                         | Login form with demo-account hint           | Authenticate and start a session                          |
+| `/dashboard`    | All authenticated roles           | Protected, role-specific summary            | Role-specific summaries and shortcuts                     |
+| `/scholarships` | Students; staff management        | Protected empty catalogue preview           | Search, filter, detail, save, and staff maintenance       |
+| `/timetable`    | Students; staff/coordinator views | Protected empty schedule preview            | Weekly timetable, batch/teacher views, conflict checks    |
+| `/rooms`        | Staff and coordinator             | Protected empty room list preview           | Department room records and availability                  |
+| `/reports`      | Staff and coordinator             | Protected report definition cards           | Active/expiring scholarships, timetable, rooms, conflicts |
+| `/users`        | Coordinator                       | Live account, role, and activation controls | User, role, batch, and department management              |
 
 The portal routes are grouped under `app/(portal)/` so the shared shell does not wrap the public landing page. The route group does not appear in the URL.
 
 ## 3. Navigation groups
 
-| Group          | Items                   | Notes                           |
-| -------------- | ----------------------- | ------------------------------- |
-| Overview       | Dashboard               | Visible to every signed-in role |
-| Academic       | Scholarships, Timetable | Visible to every signed-in role |
-| Operations     | Rooms, Reports          | Staff and coordinator           |
-| Administration | People                  | Coordinator                     |
+The shell renders only the groups available to the signed-in role. The server remains the security boundary: page guards and server actions reject access even if a URL is typed directly. Hiding a link is never sufficient authorization.
 
-The current shell shows every group because authentication is not implemented. Phase 2 hides unavailable groups for the signed-in role, but the server remains the security boundary. Hiding a link is never sufficient authorization.
+| Group          | Items                   | Visible to            |
+| -------------- | ----------------------- | --------------------- |
+| Overview       | Dashboard               | Every signed-in role  |
+| Academic       | Scholarships, Timetable | Every signed-in role  |
+| Operations     | Rooms, Reports          | Staff and coordinator |
+| Administration | People                  | Coordinator           |
 
 ## 4. Page shell
 
@@ -42,10 +42,10 @@ The current shell shows every group because authentication is not implemented. P
 │ Sidebar / mobile navigation                                  │
 │  University Portal                                           │
 │  Dashboard · Scholarships · Timetable                        │
-│  Rooms · Reports · People                                    │
-│  Foundation status                                          │
+│  Rooms · Reports · People (role-filtered)                    │
+│  Signed-in name · role badge · email · scope                 │
 ├──────────────────────────────────────────────────────────────┤
-│ Top bar: Portal preview · Public overview                    │
+│ Top bar: Signed in as ... · Public overview · Sign out       │
 │                                                              │
 │ Page header: eyebrow, title, description, actions            │
 │ Alerts, cards, tables, empty states                          │
@@ -58,9 +58,12 @@ Behaviour:
 
 - Desktop: a persistent left sidebar with grouped navigation.
 - Mobile: the sidebar becomes a compact top block and the navigation scrolls horizontally.
+- The sidebar account card shows the signed-in name, role, email, and batch or department scope.
+- The top bar always provides a sign-out action, including on mobile.
 - A skip link moves keyboard focus directly to the main content.
 - `aria-current="page"` identifies the active navigation item.
 - The shell uses a maximum content width of `7xl` and responsive padding.
+- Unauthenticated visits to any portal route redirect to `/login`.
 
 ## 5. Dashboard structure
 
@@ -73,6 +76,8 @@ Behaviour:
 | Saved scholarships  | Bookmarks belonging to the signed-in student           |
 | Today's classes     | Entries for the student's batch on the current weekday |
 | Next class          | The next upcoming entry for the student's batch        |
+
+The dashboard renders only the metrics and shortcuts for the signed-in role. A student sees the student summary; staff and coordinators see the operational summary. The coordinator additionally receives the People shortcut and account-management access.
 
 Each card links to the relevant filtered list or timetable view.
 
@@ -91,24 +96,26 @@ The coordinator has the same operational signal as staff, plus access to people 
 
 ## 6. UI component foundation
 
-| Component      | File                                 | Purpose                                            |
-| -------------- | ------------------------------------ | -------------------------------------------------- |
-| `Button`       | `components/ui/button.tsx`           | Primary, secondary, ghost, and danger actions      |
-| `Badge`        | `components/ui/badge.tsx`            | Neutral, success, warning, danger, and info labels |
-| `Card` family  | `components/ui/card.tsx`             | Consistent content grouping                        |
-| `Input`        | `components/ui/input.tsx`            | Text input with shared control styles              |
-| `Select`       | `components/ui/select.tsx`           | Native select with the same control styles         |
-| `Textarea`     | `components/ui/textarea.tsx`         | Multi-line input                                   |
-| `Field`        | `components/ui/field.tsx`            | Label, hint, and field-level error                 |
-| `Table` family | `components/ui/table.tsx`            | Responsive, readable data tables                   |
-| `EmptyState`   | `components/ui/empty-state.tsx`      | Clear no-data guidance                             |
-| `Alert`        | `components/ui/alert.tsx`            | Inline information, success, warning, and error    |
-| `PageHeader`   | `components/ui/page-header.tsx`      | Page title, description, and action area           |
-| `StatCard`     | `components/ui/stat-card.tsx`        | Dashboard metric demonstration                     |
-| `PortalShell`  | `components/portal/portal-shell.tsx` | Sidebar, top bar, content area, and footer         |
-| `PortalNav`    | `components/portal/portal-nav.tsx`   | Active-route navigation                            |
+| Component        | File                                      | Purpose                                                  |
+| ---------------- | ----------------------------------------- | -------------------------------------------------------- |
+| `Button`         | `components/ui/button.tsx`                | Primary, secondary, ghost, and danger actions            |
+| `Badge`          | `components/ui/badge.tsx`                 | Neutral, success, warning, danger, and info labels       |
+| `Card` family    | `components/ui/card.tsx`                  | Consistent content grouping                              |
+| `Input`          | `components/ui/input.tsx`                 | Text input with shared control styles                    |
+| `Select`         | `components/ui/select.tsx`                | Native select with the same control styles               |
+| `Textarea`       | `components/ui/textarea.tsx`              | Multi-line input                                         |
+| `Field`          | `components/ui/field.tsx`                 | Label, hint, and field-level error                       |
+| `Table` family   | `components/ui/table.tsx`                 | Responsive, readable data tables                         |
+| `EmptyState`     | `components/ui/empty-state.tsx`           | Clear no-data guidance                                   |
+| `Alert`          | `components/ui/alert.tsx`                 | Inline information, success, warning, and error          |
+| `PageHeader`     | `components/ui/page-header.tsx`           | Page title, description, and action area                 |
+| `StatCard`       | `components/ui/stat-card.tsx`             | Dashboard metric demonstration                           |
+| `PortalShell`    | `components/portal/portal-shell.tsx`      | Sidebar, account card, top bar, content area, and footer |
+| `PortalNav`      | `components/portal/portal-nav.tsx`        | Active-route navigation, filtered by role                |
+| `LoginForm`      | `app/login/login-form.tsx`                | Client login form using `useActionState`                 |
+| `CreateUserForm` | `app/(portal)/users/create-user-form.tsx` | Coordinator account creation with role-aware fields      |
 
-Navigation data lives in `lib/portal/navigation.ts`. The class-name helper lives in `lib/utils/cn.ts`.
+Navigation data and the role filter live in `lib/portal/navigation.ts`. Authentication modules live in `lib/auth/`. The class-name helper lives in `lib/utils/cn.ts`.
 
 ## 7. State handling
 
@@ -119,7 +126,7 @@ Every data screen introduced later must define:
 - **Error:** a readable message with a retry path; errors never expose internals.
 - **Success:** the normal content with no misleading placeholder values.
 
-The Phase 1 portal includes a route-level loading skeleton and explicit empty/placeholder states. Live errors and mutation feedback are added with the relevant module.
+The portal includes a route-level loading skeleton, in-shell and root error boundaries, explicit empty/placeholder states, and login/user-management mutation feedback. Live scholarship and timetable errors are added with their modules.
 
 ## 8. Responsive and accessibility rules
 
@@ -134,7 +141,7 @@ The Phase 1 portal includes a route-level loading skeleton and explicit empty/pl
 
 ## 9. Phase boundaries
 
-- Phase 2 adds authentication, session handling, role checks, and role-specific navigation.
+- Phase 2 is implemented: authentication, session handling, role checks, protected routes, role-specific navigation, role-specific dashboards, and coordinator user management.
 - Phase 3 replaces the scholarship placeholder with the real catalogue and staff forms.
 - Phase 4 replaces the timetable and room placeholders with real scheduling.
 - Phase 5 replaces dashboard placeholders and report definitions with live summaries.

@@ -6,7 +6,6 @@ import { buttonStyles } from "@/components/ui/button";
 const modules = [
   {
     name: "Scholarships",
-    href: "/scholarships",
     summary:
       "Browse opportunities maintained by authorised staff, review eligibility and required documents, and keep track of application deadlines.",
     points: [
@@ -17,7 +16,6 @@ const modules = [
   },
   {
     name: "Timetable",
-    href: "/timetable",
     summary:
       "View class schedules for a batch or section, with built-in checks that keep teachers, batches, and rooms free from overlapping classes.",
     points: [
@@ -56,17 +54,17 @@ export default function Home() {
             </div>
           </div>
           <Link
-            href="/dashboard"
+            href="/login"
             className={buttonStyles({ variant: "secondary", size: "sm" })}
           >
-            Open portal preview
+            Sign in
           </Link>
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-14 sm:py-20">
         <section className="max-w-3xl">
-          <Badge tone="success">Phase 1 foundation</Badge>
+          <Badge tone="success">Phase 2 · Secure access</Badge>
           <h1 className="mt-5 text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl dark:text-zinc-50">
             Two essential academic services, in one place.
           </h1>
@@ -76,11 +74,11 @@ export default function Home() {
             staff maintain accurate information for both.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/dashboard" className={buttonStyles({ size: "lg" })}>
-              Open portal preview
+            <Link href="/login" className={buttonStyles({ size: "lg" })}>
+              Sign in to the portal
             </Link>
             <Link
-              href="/scholarships"
+              href="/login"
               className={buttonStyles({ variant: "secondary", size: "lg" })}
             >
               Explore the modules
@@ -135,10 +133,10 @@ export default function Home() {
                   ))}
                 </ul>
                 <Link
-                  href={module.href}
+                  href="/login"
                   className="mt-5 inline-flex text-sm font-medium text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
                 >
-                  Open {module.name.toLowerCase()} preview{" "}
+                  Sign in to open {module.name.toLowerCase()}{" "}
                   <span aria-hidden="true" className="ml-1">
                     →
                   </span>
@@ -179,7 +177,7 @@ export default function Home() {
       <footer className="border-t border-zinc-200 px-6 py-6 dark:border-zinc-800">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between dark:text-zinc-400">
           <p>University Scholarship and Academic Timetable Portal</p>
-          <p>Foundation release · Phase 1</p>
+          <p>Phase 2 · Authentication and roles</p>
         </div>
       </footer>
     </div>

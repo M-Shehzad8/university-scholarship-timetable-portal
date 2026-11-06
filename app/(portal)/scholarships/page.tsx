@@ -19,10 +19,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { requireUser } from "@/lib/auth/dal";
 
 export const metadata: Metadata = {
   title: "Scholarships",
 };
+
+export const instant = false;
 
 const studentFeatures = [
   "Search active opportunities by title, provider, or keyword",
@@ -38,7 +41,9 @@ const staffFeatures = [
   "Remove records while keeping saved-bookmark references consistent",
 ];
 
-export default function ScholarshipsPage() {
+export default async function ScholarshipsPage() {
+  await requireUser();
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -48,7 +53,7 @@ export default function ScholarshipsPage() {
         actions={<Badge tone="info">Phase 3 implementation</Badge>}
       />
 
-      <Alert title="The catalogue is intentionally empty in Phase 1.">
+      <Alert title="The catalogue is intentionally empty until Phase 3.">
         The database model and screen structure are ready. Scholarship records,
         search, filters, bookmarks, and staff maintenance are implemented in
         Phase 3 so this foundation does not claim features that do not work yet.
@@ -144,7 +149,7 @@ export default function ScholarshipsPage() {
           <CardTitle>Catalogue preview</CardTitle>
           <CardDescription>
             The final listing uses the same table and empty-state patterns shown
-            here. No sample scholarship data is stored in Phase 1.
+            here. No sample scholarship data is stored yet.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0 pb-0">

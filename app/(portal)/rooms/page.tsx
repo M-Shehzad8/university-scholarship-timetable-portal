@@ -19,12 +19,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { requireStaffOrCoordinator } from "@/lib/auth/dal";
 
 export const metadata: Metadata = {
   title: "Rooms",
 };
 
-export default function RoomsPage() {
+export const instant = false;
+
+export default async function RoomsPage() {
+  await requireStaffOrCoordinator();
+
   return (
     <div className="space-y-8">
       <PageHeader

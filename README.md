@@ -9,16 +9,17 @@ The project is intentionally scoped as a student academic services portal, not a
 
 ## Technology
 
-| Area                 | Choice                                        |
-| -------------------- | --------------------------------------------- |
-| Framework            | Next.js 16 (App Router)                       |
-| Language             | TypeScript                                    |
-| UI                   | React 19 + Tailwind CSS 4                     |
-| Database             | PostgreSQL 15+                                |
-| ORM                  | Prisma 7 with the PostgreSQL adapter          |
-| Validation           | Zod (introduced with the first data features) |
-| Linting / formatting | ESLint + Prettier                             |
-| Testing              | Added in the testing phase                    |
+| Area                 | Choice                                      |
+| -------------------- | ------------------------------------------- |
+| Framework            | Next.js 16 (App Router)                     |
+| Language             | TypeScript                                  |
+| UI                   | React 19 + Tailwind CSS 4                   |
+| Database             | PostgreSQL 15+                              |
+| ORM                  | Prisma 7 with the PostgreSQL adapter        |
+| Validation           | Zod                                         |
+| Authentication       | Database-backed sessions + bcrypt passwords |
+| Linting / formatting | ESLint + Prettier                           |
+| Testing              | Added in the testing phase                  |
 
 ## Requirements
 
@@ -48,13 +49,32 @@ The project is intentionally scoped as a student academic services portal, not a
    npm run db:migrate
    ```
 
-4. Start the development server:
+4. Create the local demo accounts. The seed script is idempotent and uses `SEED_PASSWORD` from `.env.local`:
+
+   ```bash
+   npm run db:seed
+   ```
+
+   If `SEED_PASSWORD` is not set, the local default is `PortalDemo2026!`.
+
+5. Start the development server:
 
    ```bash
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000).
+6. Open [http://localhost:3000](http://localhost:3000) and sign in at `/login`.
+
+### Demo accounts
+
+| Role        | Email                        | Notes                       |
+| ----------- | ---------------------------- | --------------------------- |
+| Coordinator | `coordinator@university.edu` | User and role management    |
+| Staff       | `staff@university.edu`       | Academic data maintenance   |
+| Student     | `student@university.edu`     | Linked to batch `BCS-7A`    |
+| Student     | `inactive@university.edu`    | Inactive; login is rejected |
+
+All demo accounts use the `SEED_PASSWORD` value. Change it before seeding any shared or non-demo environment. Seeding never runs automatically in production.
 
 ## Available scripts
 
@@ -71,6 +91,7 @@ The project is intentionally scoped as a student academic services portal, not a
 | `npm run db:generate`  | Generate the Prisma client                           |
 | `npm run db:validate`  | Validate the Prisma schema                           |
 | `npm run db:migrate`   | Create and apply development migrations              |
+| `npm run db:seed`      | Create or refresh the local demo data                |
 | `npm run db:studio`    | Open Prisma Studio                                   |
 
 ## Project structure
@@ -78,12 +99,15 @@ The project is intentionally scoped as a student academic services portal, not a
 ```text
 fyp-project/
 ├── app/                 # App Router routes, layouts, and global styles
-│   └── (portal)/        # Shared portal shell and module pages
+│   ├── login/           # Public login page and form
+│   └── (portal)/        # Authenticated portal shell and module pages
 ├── components/          # Portal shell and reusable UI components
-├── lib/                 # Domain utilities, navigation, and database access
+├── lib/                 # Domain utilities, auth, validation, and database access
+│   ├── auth/            # Sessions, passwords, guards, roles, and user actions
 │   ├── db/              # Shared Prisma client
-│   └── generated/       # Generated Prisma client (ignored by Git)
-├── prisma/              # Schema, migrations, and future seed data
+│   ├── generated/       # Generated Prisma client (ignored by Git)
+│   └── validation/      # Server-side Zod schemas
+├── prisma/              # Schema, migrations, and seed data
 ├── public/              # Static assets
 ├── docs/                # Architecture, requirements, database, and UI notes
 └── README.md
@@ -96,9 +120,19 @@ The Prisma client is generated locally and is not committed. `npm install`, `npm
 | Variable         | Purpose                                                 |
 | ---------------- | ------------------------------------------------------- |
 | `DATABASE_URL`   | PostgreSQL connection string used by Prisma and the app |
-| `SESSION_SECRET` | Secret used to sign session cookies                     |
+| `SESSION_SECRET` | HMAC secret for hashing session tokens (32+ characters) |
+| `SEED_PASSWORD`  | Password assigned to local demo accounts by `db:seed`   |
 
 Only variables intended for the browser should use the `NEXT_PUBLIC_` prefix. All current configuration is server-side.
+
+### Authentication model
+
+- Passwords are hashed with bcrypt at cost 12. Plain passwords are never stored or logged.
+- Login creates a random 256-bit token. The browser receives it in an HTTP-only, SameSite=Lax cookie.
+- The database stores only an HMAC-SHA256 hash of the token, plus the user, expiry, and creation time.
+- Sessions last seven days. Logout deletes the database row and clears the cookie.
+- Deactivating an account revokes all of its sessions immediately.
+- Every protected page and server action checks the session and role on the server. Hiding a navigation item is not treated as authorization.
 
 ## Documentation
 
@@ -110,4 +144,4 @@ Only variables intended for the browser should use the `NEXT_PUBLIC_` prefix. Al
 
 ## Status
 
-Phase 1 is complete. Requirements, use cases, the database schema, the initial migration, navigation, dashboard structure, and the shared UI foundation are in place. Authentication, live scholarship data, and timetable scheduling are implemented in later phases.
+Phase 2 is complete. Authentication, database-backed sessions, bcrypt password hashing, role guards, protected portal routes, role-aware navigation, role-specific dashboards, and coordinator user management are in place. The scholarship and timetable modules remain honest placeholders until Phases 3 and 4.

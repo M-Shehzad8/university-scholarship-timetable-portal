@@ -58,6 +58,7 @@ model User {
 
   savedScholarships SavedScholarship[]
   notifications     Notification[]
+  sessions          Session[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -65,6 +66,21 @@ model User {
   @@index([role])
   @@index([batchId])
   @@index([departmentId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  /// HMAC-SHA256 of the opaque cookie token. The raw token is never stored.
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Scholarship {

@@ -28,15 +28,16 @@ The application is one Next.js deployment and one PostgreSQL database. It is not
 
 ## 2. Application layers
 
-| Layer              | Location                         | Responsibility                                                           |
-| ------------------ | -------------------------------- | ------------------------------------------------------------------------ |
-| Routes and layouts | `app/`                           | URL structure, page composition, metadata, loading and error states      |
-| Portal shell       | `components/portal/`             | Sidebar, navigation, top bar, content frame, footer                      |
-| UI components      | `components/ui/`                 | Reusable cards, buttons, badges, forms, tables, alerts, and empty states |
-| Domain logic       | `lib/`                           | Conflict rules, room assignment, deadline state, authorization helpers   |
-| Data access        | `lib/db/`                        | Shared Prisma client and, later, module-specific query functions         |
-| Database           | `prisma/`                        | Schema, migration history, and seed data                                 |
-| Validation         | `lib/validation/` (from Phase 2) | Server-side schemas for every mutation                                   |
+| Layer              | Location                              | Responsibility                                                           |
+| ------------------ | ------------------------------------- | ------------------------------------------------------------------------ |
+| Routes and layouts | `app/`                                | URL structure, page composition, metadata, loading and error states      |
+| Portal shell       | `components/portal/`                  | Sidebar, navigation, top bar, content frame, footer                      |
+| UI components      | `components/ui/`                      | Reusable cards, buttons, badges, forms, tables, alerts, and empty states |
+| Domain logic       | `lib/`                                | Conflict rules, room assignment, deadline state, authorization helpers   |
+| Authentication     | `lib/auth/`                           | Password hashing, sessions, guards, roles, and user-management actions   |
+| Data access        | `lib/db/`, `lib/auth/user-queries.ts` | Shared Prisma client and module query functions                          |
+| Database           | `prisma/`                             | Schema, migration history, and seed data                                 |
+| Validation         | `lib/validation/`                     | Server-side Zod schemas for every mutation                               |
 
 Route handlers, server actions, and pages stay thin: validate input, check authorization, call shared domain logic, call a data-access function, and return a result. Business rules must not be copied into multiple screens.
 
@@ -55,9 +56,14 @@ Route handlers, server actions, and pages stay thin: validate input, check autho
 app/
 ├── layout.tsx                 Root document, fonts, metadata
 ├── page.tsx                   Public portal overview
+├── error.tsx                  Root error boundary
 ├── globals.css                Tailwind theme and base typography
+├── login/
+│   ├── page.tsx               Public login page
+│   └── login-form.tsx         Client form using useActionState
 └── (portal)/
-    ├── layout.tsx             Shared portal shell
+    ├── layout.tsx             Authenticated shell; requires a session
+    ├── error.tsx              In-shell error boundary
     ├── loading.tsx            Route-level loading skeleton
     ├── dashboard/page.tsx
     ├── scholarships/page.tsx
@@ -67,7 +73,7 @@ app/
     └── users/page.tsx
 ```
 
-The `(portal)` folder is a route group, so it does not appear in URLs. Phase 2 adds protected access and role-aware navigation. Phase 3–5 replace the current placeholder content with real data and actions.
+The `(portal)` folder is a route group, so it does not appear in URLs. The layout requires a valid session, and each page performs its own guard: all roles for the dashboard, scholarships, and timetable; staff or coordinator for rooms and reports; coordinator only for people. The layout check alone is not treated as sufficient protection for nested segments.
 
 ## 5. Data layer
 
@@ -140,16 +146,28 @@ Class times are stored as minutes from midnight, so the comparison is determinis
 
 ### 6.3 Authentication and authorization
 
-Phase 2 adds:
+Implemented in Phase 2:
 
-- login and logout;
-- password hashing;
-- session cookies;
-- route protection;
-- server-side role checks;
-- role-aware dashboards and navigation.
+- Login with email and password; logout from the portal shell.
+- bcrypt password hashing at cost 12.
+- Database-backed sessions: a random token in an HTTP-only cookie and an HMAC-SHA256 token hash in the `Session` table.
+- Seven-day absolute session expiry.
+- Route protection through the portal layout and page-level guards.
+- Server-side role checks in every restricted page and server action.
+- Role-aware navigation and role-specific dashboards.
+- Coordinator user management: account creation, role assignment, activation, and deactivation.
+- Immediate session revocation on logout or deactivation.
 
-Authorization helpers will live close to protected operations and will be reused rather than reimplemented per page.
+Authorization helpers live in `lib/auth/dal.ts` and are reused rather than reimplemented per page. Hiding a navigation item is only a usability measure; the server guard remains the security boundary.
+
+The session strategy is intentionally simple enough to explain in a viva:
+
+```text
+token = random 256-bit value
+cookie = token
+database.tokenHash = HMAC-SHA256(token, SESSION_SECRET)
+request -> hash cookie token -> look up session -> check expiry and isActive
+```
 
 ### 6.4 Notifications and reports
 
@@ -169,15 +187,17 @@ The detailed role matrix is in [requirements.md](requirements.md).
 
 Secrets are supplied through `.env.local` (ignored by Git) and documented in `.env.example`.
 
-| Variable         | Purpose                                                 |
-| ---------------- | ------------------------------------------------------- |
-| `DATABASE_URL`   | PostgreSQL connection string used by Prisma and the app |
-| `SESSION_SECRET` | Signing secret for session cookies                      |
+| Variable         | Purpose                                                       |
+| ---------------- | ------------------------------------------------------------- |
+| `DATABASE_URL`   | PostgreSQL connection string used by Prisma and the app       |
+| `SESSION_SECRET` | HMAC pepper for session tokens; at least 32 characters        |
+| `SEED_PASSWORD`  | Password assigned to local demo accounts by `npm run db:seed` |
 
 Rules:
 
 - Browser-exposed values must use the `NEXT_PUBLIC_` prefix and must never contain secrets.
 - Passwords are never stored or logged in plain text.
+- Session tokens are never logged or stored unhashed.
 - Server validation is required even when the UI already validates the same field.
 - Database errors are logged internally and replaced with safe user-facing messages.
 - Generated files and local reports are not committed.
@@ -199,7 +219,6 @@ A phase is complete only when:
 
 The following decisions are intentionally left to the phase that needs them:
 
-- Session storage representation and password hashing library — Phase 2.
 - Testing framework and end-to-end tooling — Phase 6.
 - Deployment target and container setup — Phase 6/7.
 - Optional PDF export — Phase 5/6, only if it does not destabilise the core system.

@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { portalNavigation } from "@/lib/portal/navigation";
+import type { PortalNavGroup } from "@/lib/portal/navigation";
 import { cn } from "@/lib/utils/cn";
 
-export function PortalNav() {
+export function PortalNav({ groups }: { groups: PortalNavGroup[] }) {
   const pathname = usePathname();
 
   return (
@@ -15,7 +15,7 @@ export function PortalNav() {
       className="w-full overflow-x-auto lg:overflow-visible"
     >
       <div className="flex gap-1 lg:flex-col lg:gap-6">
-        {portalNavigation.map((group) => (
+        {groups.map((group) => (
           <div
             key={group.label}
             className="flex shrink-0 gap-1 lg:flex-col lg:gap-1"

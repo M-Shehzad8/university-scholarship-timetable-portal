@@ -3,8 +3,25 @@ import type { ReactNode } from "react";
 
 import { PortalNav } from "@/components/portal/portal-nav";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { logout } from "@/lib/auth/actions";
+import {
+  getUserScopeLabel,
+  ROLE_LABELS,
+  roleBadgeTone,
+} from "@/lib/auth/roles";
+import type { AuthenticatedUser } from "@/lib/auth/types";
+import { filterNavigationByRole } from "@/lib/portal/navigation";
 
-export function PortalShell({ children }: { children: ReactNode }) {
+export function PortalShell({
+  user,
+  children,
+}: {
+  user: AuthenticatedUser;
+  children: ReactNode;
+}) {
+  const navigation = filterNavigationByRole(user.role);
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <a
@@ -17,7 +34,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
       <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col lg:flex-row">
         <aside className="border-b border-zinc-200 bg-white lg:w-72 lg:border-r lg:border-b-0 dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex h-full flex-col gap-5 p-4 lg:sticky lg:top-0 lg:h-screen lg:p-6">
-            <Link href="/" className="flex items-center gap-3">
+            <Link href="/dashboard" className="flex items-center gap-3">
               <span
                 aria-hidden="true"
                 className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700 text-sm font-semibold text-white"
@@ -34,18 +51,25 @@ export function PortalShell({ children }: { children: ReactNode }) {
               </span>
             </Link>
 
-            <PortalNav />
+            <PortalNav groups={navigation} />
 
             <div className="mt-auto hidden rounded-xl border border-zinc-200 bg-zinc-50 p-4 lg:block dark:border-zinc-800 dark:bg-zinc-900/60">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-                  Foundation status
+                <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  {user.name}
                 </p>
-                <Badge tone="warning">Phase 1</Badge>
+                <Badge tone={roleBadgeTone(user.role)}>
+                  {ROLE_LABELS[user.role]}
+                </Badge>
               </div>
-              <p className="mt-2 text-xs leading-5 text-zinc-600 dark:text-zinc-400">
-                Navigation, dashboards, schema, and shared UI are in place.
-                Authentication and live data arrive in later phases.
+              <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                {user.email}
+              </p>
+              <p className="mt-3 text-xs leading-5 text-zinc-600 dark:text-zinc-400">
+                {getUserScopeLabel(user)}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-500">
+                Secure database session · 7 days
               </p>
             </div>
           </div>
@@ -54,21 +78,27 @@ export function PortalShell({ children }: { children: ReactNode }) {
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
             <div className="flex items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-              <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-full bg-amber-500"
-                />
-                Portal preview
-                <span className="text-zinc-300 dark:text-zinc-700">/</span>
-                No account required yet
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  Signed in as {user.name}
+                </p>
+                <p className="truncate text-xs text-zinc-500 dark:text-zinc-500">
+                  {ROLE_LABELS[user.role]} · {getUserScopeLabel(user)}
+                </p>
               </div>
-              <Link
-                href="/"
-                className="text-xs font-medium text-zinc-600 transition-colors hover:text-emerald-700 dark:text-zinc-400 dark:hover:text-emerald-400"
-              >
-                Public overview
-              </Link>
+              <div className="flex shrink-0 items-center gap-1">
+                <Link
+                  href="/"
+                  className="hidden text-xs font-medium text-zinc-600 transition-colors hover:text-emerald-700 sm:inline dark:text-zinc-400 dark:hover:text-emerald-400"
+                >
+                  Public overview
+                </Link>
+                <form action={logout}>
+                  <Button type="submit" variant="ghost" size="sm">
+                    Sign out
+                  </Button>
+                </form>
+              </div>
             </div>
           </header>
 
@@ -83,7 +113,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
           <footer className="border-t border-zinc-200 px-4 py-4 text-xs text-zinc-500 sm:px-6 lg:px-8 dark:border-zinc-800 dark:text-zinc-400">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <p>University Scholarship and Academic Timetable Portal</p>
-              <p>Phase 1 · UI foundation</p>
+              <p>Phase 2 · Authentication and roles</p>
             </div>
           </footer>
         </div>

@@ -19,10 +19,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { requireUser } from "@/lib/auth/dal";
 
 export const metadata: Metadata = {
   title: "Timetable",
 };
+
+export const instant = false;
 
 const assignmentSteps = [
   "Load the rooms that belong to the selected batch's department.",
@@ -31,7 +34,9 @@ const assignmentSteps = [
   "Return the selected room, or a clear no-room-available result.",
 ];
 
-export default function TimetablePage() {
+export default async function TimetablePage() {
+  await requireUser();
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -41,7 +46,7 @@ export default function TimetablePage() {
         actions={<Badge tone="info">Phase 4 implementation</Badge>}
       />
 
-      <Alert title="The schedule is intentionally empty in Phase 1.">
+      <Alert title="The schedule is intentionally empty until Phase 4.">
         The data model, conflict rule, room-assignment rule, and interface
         structure are finalised. Course, teacher, batch, and room management
         plus the editable timetable arrive in Phase 4.

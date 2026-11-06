@@ -9,10 +9,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
+import { requireStaffOrCoordinator } from "@/lib/auth/dal";
 
 export const metadata: Metadata = {
   title: "Reports",
 };
+
+export const instant = false;
 
 const reports = [
   {
@@ -47,7 +50,9 @@ const reports = [
   },
 ];
 
-export default function ReportsPage() {
+export default async function ReportsPage() {
+  await requireStaffOrCoordinator();
+
   return (
     <div className="space-y-8">
       <PageHeader

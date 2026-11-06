@@ -12,10 +12,20 @@ import {
 } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard, type StatTone } from "@/components/ui/stat-card";
+import { requireUser } from "@/lib/auth/dal";
+import {
+  getUserScopeLabel,
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+  roleBadgeTone,
+} from "@/lib/auth/roles";
+import type { Role } from "@/lib/generated/prisma/enums";
 
 export const metadata: Metadata = {
   title: "Dashboard",
 };
+
+export const instant = false;
 
 const studentMetrics: Array<{ label: string; detail: string; tone: StatTone }> =
   [
@@ -31,12 +41,12 @@ const studentMetrics: Array<{ label: string; detail: string; tone: StatTone }> =
     },
     {
       label: "Saved scholarships",
-      detail: "Opportunities bookmarked by the signed-in student",
+      detail: "Opportunities bookmarked by your account",
       tone: "sky",
     },
     {
       label: "Today's classes",
-      detail: "Classes scheduled for the student's batch or section",
+      detail: "Classes scheduled for your batch or section",
       tone: "zinc",
     },
     {
@@ -79,91 +89,138 @@ const staffMetrics: Array<{ label: string; detail: string; tone: StatTone }> = [
   },
 ];
 
-const shortcuts = [
-  {
-    href: "/scholarships",
-    title: "Scholarships",
-    description:
-      "Browse the student catalogue or prepare scholarship records for publication.",
-    action: "Open scholarships",
-  },
-  {
-    href: "/timetable",
-    title: "Timetable",
-    description:
-      "Review the scheduling structure, conflict rules, and room-assignment flow.",
-    action: "Open timetable",
-  },
-  {
-    href: "/reports",
-    title: "Reports",
-    description:
-      "See the focused operational summaries planned for staff and coordinators.",
-    action: "Open reports",
-  },
-];
+type Shortcut = {
+  href: string;
+  title: string;
+  description: string;
+  action: string;
+};
 
-export default function DashboardPage() {
+const shortcuts: Record<Role, Shortcut[]> = {
+  STUDENT: [
+    {
+      href: "/scholarships",
+      title: "Scholarships",
+      description:
+        "Browse published opportunities, check deadlines, and save records for later.",
+      action: "Open scholarships",
+    },
+    {
+      href: "/timetable",
+      title: "Timetable",
+      description:
+        "Review the weekly class schedule for your batch and section.",
+      action: "Open timetable",
+    },
+  ],
+  STAFF: [
+    {
+      href: "/scholarships",
+      title: "Scholarships",
+      description: "Create and maintain scholarship records for publication.",
+      action: "Manage scholarships",
+    },
+    {
+      href: "/timetable",
+      title: "Timetable",
+      description:
+        "Prepare course, teacher, batch, room, and timetable records.",
+      action: "Open timetable",
+    },
+    {
+      href: "/reports",
+      title: "Reports",
+      description:
+        "Review the operational summaries planned for staff and coordinators.",
+      action: "Open reports",
+    },
+  ],
+  COORDINATOR: [
+    {
+      href: "/users",
+      title: "People",
+      description:
+        "Create accounts, assign one of the three roles, and deactivate access.",
+      action: "Manage people",
+    },
+    {
+      href: "/reports",
+      title: "Reports",
+      description:
+        "Review department-wide scholarship and timetable oversight.",
+      action: "Open reports",
+    },
+    {
+      href: "/timetable",
+      title: "Timetable",
+      description:
+        "Inspect schedules, conflicts, and room assignment across the department.",
+      action: "Open timetable",
+    },
+  ],
+};
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const user = await requireUser();
+  const params = await searchParams;
+  const isStudent = user.role === "STUDENT";
+  const metrics = isStudent ? studentMetrics : staffMetrics;
+  const roleShortcuts = shortcuts[user.role];
+
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Portal overview"
-        title="Dashboard"
-        description="A single place for students to track opportunities and classes, and for staff to monitor the academic information they maintain."
-        actions={<Badge tone="warning">Phase 1 preview</Badge>}
+        title={`Welcome back, ${user.name}`}
+        description={`This is the ${ROLE_LABELS[user.role].toLowerCase()} view. ${
+          isStudent
+            ? "It focuses on opportunities, deadlines, and your own class schedule."
+            : "It focuses on the information your role maintains and monitors."
+        }`}
+        actions={
+          <Badge tone={roleBadgeTone(user.role)}>
+            {ROLE_LABELS[user.role]}
+          </Badge>
+        }
       />
 
-      <Alert title="Dashboard structure is ready; live values arrive with their modules.">
-        Authentication and role-based dashboards are Phase 2. Scholarship data
-        is Phase 3, timetable data is Phase 4, and final dashboard integration
-        is Phase 5. Placeholder values below show the agreed information
-        hierarchy without pretending the data exists.
+      {params.error === "forbidden" ? (
+        <Alert tone="error" title="You do not have access to that page.">
+          The portal blocked the request on the server. Use the navigation items
+          available to your role.
+        </Alert>
+      ) : null}
+
+      <Alert title="Authentication is live; module values arrive in later phases.">
+        Your identity, role, and access are enforced now. Scholarship figures
+        arrive with Phase 3, timetable figures with Phase 4, and final dashboard
+        integration with Phase 5. The cards below show the agreed structure
+        without pretending live data exists.
       </Alert>
 
       <section
-        aria-labelledby="student-dashboard-heading"
+        aria-labelledby="dashboard-metrics-heading"
         className="space-y-4"
       >
         <div>
           <h2
-            id="student-dashboard-heading"
+            id="dashboard-metrics-heading"
             className="text-lg font-semibold text-zinc-900 dark:text-zinc-50"
           >
-            Student dashboard
+            {isStudent ? "Your student summary" : "Your operational summary"}
           </h2>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Only information that helps a student act: open opportunities,
-            deadlines, saved records, and today&apos;s classes.
-          </p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {studentMetrics.map((metric) => (
-            <StatCard
-              key={metric.label}
-              label={metric.label}
-              value="—"
-              detail={metric.detail}
-              tone={metric.tone}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section aria-labelledby="staff-dashboard-heading" className="space-y-4">
-        <div>
-          <h2
-            id="staff-dashboard-heading"
-            className="text-lg font-semibold text-zinc-900 dark:text-zinc-50"
-          >
-            Staff and coordinator dashboard
-          </h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Management signals stay practical: what is published, what is
-            expiring, what is scheduled, and what needs attention.
+            {isStudent
+              ? "Only information that helps you act on opportunities and attend classes."
+              : "Management signals stay practical: what is published, what is scheduled, and what needs attention."}
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {staffMetrics.map((metric) => (
+          {metrics.map((metric) => (
             <StatCard
               key={metric.label}
               label={metric.label}
@@ -182,8 +239,8 @@ export default function DashboardPage() {
         >
           Where to go next
         </h2>
-        <div className="grid gap-4 md:grid-cols-3">
-          {shortcuts.map((shortcut) => (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {roleShortcuts.map((shortcut) => (
             <Link
               key={shortcut.href}
               href={shortcut.href}
@@ -207,35 +264,76 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Foundation notes</CardTitle>
-              <CardDescription>
-                What is intentionally true at the end of Phase 1.
-              </CardDescription>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle>Your access</CardTitle>
+              <Badge tone={roleBadgeTone(user.role)}>
+                {ROLE_LABELS[user.role]}
+              </Badge>
             </div>
-            <Badge tone="info">Design baseline</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ul className="grid gap-3 text-sm leading-6 text-zinc-700 sm:grid-cols-3 dark:text-zinc-300">
-            <li className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-              Requirements, use cases, and role boundaries are documented and
-              stable enough for implementation.
-            </li>
-            <li className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-              The PostgreSQL schema, constraints, indexes, and migration are
-              defined without adding live business logic early.
-            </li>
-            <li className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-              Shared UI, navigation, and dashboard placeholders establish
-              consistent patterns for later phases.
-            </li>
-          </ul>
-        </CardContent>
-      </Card>
+            <CardDescription>{ROLE_DESCRIPTIONS[user.role]}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="space-y-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-zinc-500 dark:text-zinc-400">Account</dt>
+                <dd className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {user.email}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-zinc-500 dark:text-zinc-400">Scope</dt>
+                <dd className="font-medium text-zinc-900 dark:text-zinc-100">
+                  {getUserScopeLabel(user)}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <dt className="text-zinc-500 dark:text-zinc-400">Status</dt>
+                <dd className="font-medium text-emerald-700 dark:text-emerald-400">
+                  Active
+                </dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>How access is enforced</CardTitle>
+            <CardDescription>
+              Navigation filtering is only a usability measure. Every protected
+              page and server action checks the session and role again.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300">
+              <li className="flex gap-3">
+                <span
+                  aria-hidden="true"
+                  className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-600"
+                />
+                Unauthenticated requests are redirected to the login page.
+              </li>
+              <li className="flex gap-3">
+                <span
+                  aria-hidden="true"
+                  className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-600"
+                />
+                Role checks run on the server before restricted data or actions.
+              </li>
+              <li className="flex gap-3">
+                <span
+                  aria-hidden="true"
+                  className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-600"
+                />
+                Signing out deletes the session record and the HTTP-only cookie.
+              </li>
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
