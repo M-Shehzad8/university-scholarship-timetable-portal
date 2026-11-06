@@ -1,25 +1,21 @@
 import type { Metadata } from "next";
 
-import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { EmptyState } from "@/components/ui/empty-state";
-import { PageHeader } from "@/components/ui/page-header";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { StudentCatalogue } from "@/components/scholarships/student-catalogue";
+import { StaffScholarshipManager } from "@/components/scholarships/staff-scholarship-manager";
 import { requireUser } from "@/lib/auth/dal";
+import {
+  getScholarshipCategories,
+  getStaffScholarships,
+  getStaffScholarshipStats,
+  getStudentCatalogue,
+  getStudentScholarshipStats,
+  type StaffScholarshipFilters,
+  type StudentCatalogueFilters,
+} from "@/lib/scholarships/queries";
+import {
+  staffScholarshipFilterSchema,
+  studentCatalogueFilterSchema,
+} from "@/lib/validation/scholarship";
 
 export const metadata: Metadata = {
   title: "Scholarships",
@@ -27,156 +23,112 @@ export const metadata: Metadata = {
 
 export const instant = false;
 
-const studentFeatures = [
-  "Search active opportunities by title, provider, or keyword",
-  "Filter by category and review eligibility, benefits, and required documents",
-  "Open the official application link and save opportunities for later",
-  "See clear active, closing-soon, and expired states",
-];
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-const staffFeatures = [
-  "Create and edit scholarship records from official announcements",
-  "Publish, archive, or expire a record with a visible last-updated date",
-  "Maintain deadline, eligibility, benefits, documents, and application URL",
-  "Remove records while keeping saved-bookmark references consistent",
-];
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
 
-export default async function ScholarshipsPage() {
-  await requireUser();
+const studentStatusMessages: Record<string, string> = {
+  saved: "Scholarship saved. You can find it under Saved.",
+  removed: "Bookmark removed from your saved list.",
+};
+
+const studentErrorMessages: Record<string, string> = {
+  "save-unavailable":
+    "That scholarship is no longer open, so it cannot be newly saved. Expired records remain readable.",
+  missing: "That scholarship no longer exists.",
+  invalid: "The request was not valid. Please try again.",
+  "update-failed": "Your saved list could not be updated. Please try again.",
+};
+
+const staffStatusMessages: Record<string, string> = {
+  created: "Draft created. Review the details and publish when ready.",
+  updated: "Scholarship details saved. The last-updated time is new.",
+  published: "Scholarship published. Active students can now see it.",
+  archived: "Scholarship archived and hidden from student listings.",
+  expired: "Scholarship marked expired. Students who saved it were notified.",
+  deleted: "Scholarship deleted together with its bookmarks.",
+  unchanged: "No status change was needed.",
+};
+
+const staffErrorMessages: Record<string, string> = {
+  missing: "That scholarship no longer exists.",
+  invalid: "The request was not valid. Please try again.",
+  "deadline-passed":
+    "The deadline has passed. Update the deadline before publishing.",
+  "update-failed": "The change could not be saved. Please try again.",
+};
+
+export default async function ScholarshipsPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const user = await requireUser();
+  const raw = await searchParams;
+  const notice = first(raw.notice);
+  const problem = first(raw.problem);
+
+  if (user.role === "STUDENT") {
+    const parsed = studentCatalogueFilterSchema.parse({
+      q: first(raw.q),
+      category: first(raw.category),
+      deadline: first(raw.deadline),
+      view: first(raw.view),
+    });
+
+    const filters: StudentCatalogueFilters = {
+      q: parsed.q,
+      category: parsed.category,
+      deadline: parsed.deadline ?? (parsed.view === "saved" ? "all" : "active"),
+      view: parsed.view,
+    };
+
+    const [scholarships, stats, categories] = await Promise.all([
+      getStudentCatalogue(user.id, filters),
+      getStudentScholarshipStats(user.id),
+      getScholarshipCategories(user.role),
+    ]);
+
+    return (
+      <StudentCatalogue
+        scholarships={scholarships}
+        stats={stats}
+        filters={filters}
+        categories={categories}
+        statusMessage={notice ? studentStatusMessages[notice] : undefined}
+        errorMessage={problem ? studentErrorMessages[problem] : undefined}
+      />
+    );
+  }
+
+  const parsed = staffScholarshipFilterSchema.parse({
+    q: first(raw.q),
+    category: first(raw.category),
+    status: first(raw.status),
+  });
+
+  const filters: StaffScholarshipFilters = {
+    q: parsed.q,
+    category: parsed.category,
+    status: parsed.status,
+  };
+
+  const [scholarships, stats, categories] = await Promise.all([
+    getStaffScholarships(filters),
+    getStaffScholarshipStats(),
+    getScholarshipCategories(user.role),
+  ]);
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        eyebrow="Academic module"
-        title="Scholarships"
-        description="A maintained catalogue of opportunities. Students search and save records; authorised staff keep every field accurate and current."
-        actions={<Badge tone="info">Phase 3 implementation</Badge>}
-      />
-
-      <Alert title="The catalogue is intentionally empty until Phase 3.">
-        The database model and screen structure are ready. Scholarship records,
-        search, filters, bookmarks, and staff maintenance are implemented in
-        Phase 3 so this foundation does not claim features that do not work yet.
-      </Alert>
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle>Student experience</CardTitle>
-              <Badge tone="success">Read and save</Badge>
-            </div>
-            <CardDescription>
-              Students only see information that is safe and useful to act on.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {studentFeatures.map((feature) => (
-                <li
-                  key={feature}
-                  className="flex gap-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-600"
-                  />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle>Staff maintenance</CardTitle>
-              <Badge tone="warning">Staff and coordinator</Badge>
-            </div>
-            <CardDescription>
-              Records are entered manually from selected official sources. There
-              is no scraping or automatic application submission.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-3">
-              {staffFeatures.map((feature) => (
-                <li
-                  key={feature}
-                  className="flex gap-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
-                  />
-                  {feature}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Record lifecycle</CardTitle>
-          <CardDescription>
-            An opportunity is active only when it is published and its deadline
-            has not passed. Expired records remain readable for reference.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-            <Badge>Draft</Badge>
-            <span aria-hidden="true">→</span>
-            <Badge tone="success">Published</Badge>
-            <span aria-hidden="true">→</span>
-            <Badge tone="warning">Expired by date</Badge>
-            <span className="px-2 text-zinc-400 dark:text-zinc-600">or</span>
-            <Badge tone="danger">Archived / expired</Badge>
-          </div>
-          <p className="mt-4 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-            Draft records are hidden from students. Archived records are hidden
-            from default listings. A published record whose deadline passes is
-            excluded from active results without deleting history.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Catalogue preview</CardTitle>
-          <CardDescription>
-            The final listing uses the same table and empty-state patterns shown
-            here. No sample scholarship data is stored yet.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-0 pb-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Provider</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Deadline</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <tr>
-                <TableCell colSpan={5} className="p-0">
-                  <EmptyState
-                    title="No scholarships available yet"
-                    description="Once staff publish the first records, active opportunities will appear here with their deadline and official application link."
-                    className="py-10"
-                  />
-                </TableCell>
-              </tr>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
+    <StaffScholarshipManager
+      scholarships={scholarships}
+      stats={stats}
+      filters={filters}
+      categories={categories}
+      statusMessage={notice ? staffStatusMessages[notice] : undefined}
+      errorMessage={problem ? staffErrorMessages[problem] : undefined}
+    />
   );
 }

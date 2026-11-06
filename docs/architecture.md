@@ -66,14 +66,20 @@ app/
     ├── error.tsx              In-shell error boundary
     ├── loading.tsx            Route-level loading skeleton
     ├── dashboard/page.tsx
-    ├── scholarships/page.tsx
+    ├── scholarships/
+    │   ├── page.tsx           Student catalogue or staff management
+    │   ├── new/page.tsx       Staff-only create form
+    │   └── [id]/
+    │       ├── page.tsx       Detail, bookmark, and staff controls
+    │       ├── edit/page.tsx  Staff-only edit form
+    │       └── not-found.tsx  Friendly unavailable-record state
     ├── timetable/page.tsx
     ├── rooms/page.tsx
     ├── reports/page.tsx
     └── users/page.tsx
 ```
 
-The `(portal)` folder is a route group, so it does not appear in URLs. The layout requires a valid session, and each page performs its own guard: all roles for the dashboard, scholarships, and timetable; staff or coordinator for rooms and reports; coordinator only for people. The layout check alone is not treated as sufficient protection for nested segments.
+The `(portal)` folder is a route group, so it does not appear in URLs. The layout requires a valid session, and each page performs its own guard: all roles for the dashboard, scholarships, and timetable; staff or coordinator for scholarship writes, rooms, and reports; coordinator only for people. The layout check alone is not treated as sufficient protection for nested segments.
 
 ## 5. Data layer
 
@@ -106,7 +112,8 @@ The generated client is written to `lib/generated/prisma/` and ignored by Git. I
 
 - Schema and migrations live in `prisma/`.
 - The shared client lives in `lib/db/prisma.ts`.
-- Module query functions will live under `lib/db/` or a module folder when their first feature needs them.
+- Module reads live beside their module, for example `lib/scholarships/queries.ts`; module writes live in `lib/scholarships/actions.ts`.
+- Framework-free business rules live in `lib/scholarships/rules.ts` so pages, actions, and the seed script share one definition.
 - Pages do not build ad-hoc queries inline when the same query is needed elsewhere.
 - Mutations use a transaction when they change more than one related record.
 
@@ -114,15 +121,21 @@ The generated client is written to `lib/generated/prisma/` and ignored by Git. I
 
 ### 6.1 Scholarship module
 
-Responsibilities:
+Implemented in Phase 3:
 
-- Maintain title, provider, category, description, eligibility, benefits, required documents, deadline, application URL, and status.
-- Serve active opportunities with search and filters.
-- Track bookmarks per student.
-- Derive active and expiring-soon state from status and deadline.
-- Keep archived and expired records available as reference for staff.
+- Student catalogue with keyword search, category filter, deadline filter, and a saved-only view.
+- Detail page with description, eligibility, benefits, required documents, deadline, and the official application link.
+- Per-student bookmark save and remove. The `(userId, scholarshipId)` pair is unique.
+- Staff and coordinator management: create drafts, edit, publish, archive, mark expired, and delete.
+- Draft, active, closing-soon, expired, and archived states derived from stored status plus the calendar deadline.
+- Expired records stay readable to students who reach them directly, but cannot be newly saved.
+- Publication creates notification rows for active students; explicit expiry notifies students who saved the record. The notification centre UI remains Phase 5 work.
 
-The module owns its validation and repository functions. It does not contain timetable rules.
+Business rules live in `lib/scholarships/rules.ts`. The portal treats `Asia/Karachi` as its calendar time zone and compares `@db.Date` deadlines at UTC midnight, which keeps "today" deterministic for every request and for the seed script.
+
+A stored `PUBLISHED` record whose deadline has passed is treated as expired for every decision without rewriting the stored status. Staff can also set `EXPIRED` explicitly. Only `PUBLISHED` records with a deadline of today or later are active and newly saveable.
+
+Reads live in `lib/scholarships/queries.ts`, writes in `lib/scholarships/actions.ts`, and input validation in `lib/validation/scholarship.ts`. The module does not contain timetable rules.
 
 ### 6.2 Timetable module
 
@@ -172,6 +185,13 @@ request -> hash cookie token -> look up session -> check expiry and isActive
 ### 6.4 Notifications and reports
 
 Notifications are in-system records only. Reports are small read-only summaries. Neither module requires an external service, SMS, WhatsApp, email, or push infrastructure.
+
+Phase 3 creates two notification types as side effects of scholarship actions:
+
+- `SCHOLARSHIP_PUBLISHED` for every active student when a record is published.
+- `SCHOLARSHIP_EXPIRED` for every student who saved the record when staff explicitly expire it.
+
+A notification failure is logged but does not roll back the scholarship change. The notification centre, read state, and badge count are Phase 5 work.
 
 ## 7. Roles
 

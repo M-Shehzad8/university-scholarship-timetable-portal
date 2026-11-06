@@ -76,6 +76,18 @@ The project is intentionally scoped as a student academic services portal, not a
 
 All demo accounts use the `SEED_PASSWORD` value. Change it before seeding any shared or non-demo environment. Seeding never runs automatically in production.
 
+The seed also creates seven demo scholarships covering published, closing-soon, expired-by-date, draft, archived, and explicitly expired records, plus two bookmarks for the student account. Re-running the seed is idempotent.
+
+## Scholarships
+
+- Students see only published opportunities whose deadline has not passed by default. Search matches title, provider, category, description, and eligibility text.
+- Students can filter by category and deadline state, open a read-only detail page, and save or remove a bookmark.
+- A published record whose deadline has passed is shown as expired and cannot be newly saved, but saved expired records stay readable.
+- Drafts and archived records are hidden from students and return the friendly not-found page.
+- Staff and coordinators can create drafts, edit any record, publish, archive, mark expired, and delete. Deleting a record also deletes its bookmarks.
+- Publishing a record with a past deadline is rejected. Students active at publication receive a notification row; explicitly expiring a record notifies the students who saved it.
+- The portal links to the provider's official application page and never submits an application.
+
 ## Available scripts
 
 | Command                | Purpose                                              |
@@ -101,11 +113,12 @@ fyp-project/
 ├── app/                 # App Router routes, layouts, and global styles
 │   ├── login/           # Public login page and form
 │   └── (portal)/        # Authenticated portal shell and module pages
-├── components/          # Portal shell and reusable UI components
+├── components/          # Portal shell, scholarship UI, and reusable UI parts
 ├── lib/                 # Domain utilities, auth, validation, and database access
 │   ├── auth/            # Sessions, passwords, guards, roles, and user actions
 │   ├── db/              # Shared Prisma client
 │   ├── generated/       # Generated Prisma client (ignored by Git)
+│   ├── scholarships/    # Scholarship rules, queries, actions, and URL builders
 │   └── validation/      # Server-side Zod schemas
 ├── prisma/              # Schema, migrations, and seed data
 ├── public/              # Static assets
@@ -144,4 +157,6 @@ Only variables intended for the browser should use the `NEXT_PUBLIC_` prefix. Al
 
 ## Status
 
-Phase 2 is complete. Authentication, database-backed sessions, bcrypt password hashing, role guards, protected portal routes, role-aware navigation, role-specific dashboards, and coordinator user management are in place. The scholarship and timetable modules remain honest placeholders until Phases 3 and 4.
+Phase 3 is complete. Authentication, database-backed sessions, bcrypt password hashing, role guards, protected portal routes, role-aware navigation, role-specific dashboards, coordinator user management, and the full scholarship module are in place. The timetable module remains an honest placeholder until Phase 4.
+
+Verified Phase 3 flows include student search/filter/saved views, draft and archived detail protection, bookmark save/remove/cascade, staff create/edit/publish/archive/expire/delete, past-deadline publication rejection, field-level validation errors, and publication/expiry notification rows.
