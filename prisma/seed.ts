@@ -4,6 +4,7 @@ import { config as loadEnv } from "dotenv";
 import { hashPassword } from "../lib/auth/password";
 import type {
   DayOfWeek,
+  NotificationType,
   Role,
   ScholarshipStatus,
 } from "../lib/generated/prisma/enums";
@@ -696,6 +697,132 @@ async function main() {
     }
   }
 
+  type DemoNotification = {
+    id: string;
+    email: string;
+    type: NotificationType;
+    title: string;
+    message: string;
+    isRead: boolean;
+    minutesAgo: number;
+  };
+
+  const demoNotifications: DemoNotification[] = [
+    {
+      id: "seed-notification-student-merit",
+      email: "student@university.edu",
+      type: "SCHOLARSHIP_PUBLISHED",
+      title: "New scholarship: University Merit Scholarship 2026",
+      message:
+        "University of Engineering & Technology is accepting applications. Review the eligibility rules and required documents in the scholarship catalogue.",
+      isRead: false,
+      minutesAgo: 90,
+    },
+    {
+      id: "seed-notification-student-deadline",
+      email: "student@university.edu",
+      type: "SCHOLARSHIP_DEADLINE",
+      title: "Deadline reminder: University Merit Scholarship 2026",
+      message:
+        "This saved opportunity closes soon. Check the required documents and submit the application before the deadline.",
+      isRead: false,
+      minutesAgo: 240,
+    },
+    {
+      id: "seed-notification-student-timetable",
+      email: "student@university.edu",
+      type: "TIMETABLE_CHANGED",
+      title: "Class updated: CS-302",
+      message:
+        "Database Systems (CS-302) is scheduled for Saturday 09:00–10:00 in Room 101. Open the timetable for the latest batch details.",
+      isRead: false,
+      minutesAgo: 30,
+    },
+    {
+      id: "seed-notification-student-expired",
+      email: "student@university.edu",
+      type: "SCHOLARSHIP_EXPIRED",
+      title: "Scholarship expired: National Talent Scholarship 2025",
+      message:
+        "This saved opportunity is no longer open. It remains available as a read-only reference.",
+      isRead: true,
+      minutesAgo: 1_440,
+    },
+    {
+      id: "seed-notification-staff-room",
+      email: "staff@university.edu",
+      type: "ROOM_ASSIGNED",
+      title: "Room assigned automatically",
+      message:
+        "CS-305 for BCS-7B was assigned Room 203 on Friday 11:00–12:00 by the deterministic room allocator.",
+      isRead: true,
+      minutesAgo: 180,
+    },
+    {
+      id: "seed-notification-staff-deadline",
+      email: "staff@university.edu",
+      type: "SCHOLARSHIP_DEADLINE",
+      title: "Three scholarships close within 14 days",
+      message:
+        "Open the reports page to review deadlines and follow up on published records.",
+      isRead: false,
+      minutesAgo: 60,
+    },
+    {
+      id: "seed-notification-coordinator-published",
+      email: "coordinator@university.edu",
+      type: "SCHOLARSHIP_PUBLISHED",
+      title: "Scholarship published: HEC Need-Based Scholarship 2026",
+      message:
+        "The scholarship is now visible to active student accounts. Student reminders are tracked in the notification centre.",
+      isRead: true,
+      minutesAgo: 600,
+    },
+  ];
+
+  const notificationUsers = await prisma.user.findMany({
+    where: {
+      email: { in: [...new Set(demoNotifications.map((item) => item.email))] },
+    },
+    select: { id: true, email: true },
+  });
+  const notificationUserIds = new Map(
+    notificationUsers.map((user) => [user.email, user.id]),
+  );
+  const notificationNow = Date.now();
+
+  for (const notification of demoNotifications) {
+    const userId = notificationUserIds.get(notification.email);
+
+    if (!userId) {
+      throw new Error(
+        `Seed notification ${notification.id} references a missing user.`,
+      );
+    }
+
+    const createdAt = new Date(
+      notificationNow - notification.minutesAgo * 60_000,
+    );
+    const readAt = notification.isRead
+      ? new Date(createdAt.getTime() + 10 * 60_000)
+      : null;
+    const data = {
+      userId,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      isRead: notification.isRead,
+      readAt,
+      createdAt,
+    };
+
+    await prisma.notification.upsert({
+      where: { id: notification.id },
+      update: data,
+      create: { id: notification.id, ...data },
+    });
+  }
+
   console.log("Seed data is ready.");
   console.log(`Department: ${department.name} (${department.code})`);
   console.log(
@@ -713,6 +840,9 @@ async function main() {
   );
   console.log(
     `Timetable: ${courseSeeds.length} courses, ${teacherSeeds.length} teachers, ${roomSeeds.length} rooms, ${demoEntries.length} conflict-free classes.`,
+  );
+  console.log(
+    `Notifications: ${demoNotifications.length} demo messages across student, staff, and coordinator accounts.`,
   );
 }
 

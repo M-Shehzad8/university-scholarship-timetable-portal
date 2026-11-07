@@ -145,3 +145,149 @@ export function formatEntrySlot(
 ): string {
   return `${DAY_LABELS[day]} ${formatTimeRange(startMinute, endMinute)}`;
 }
+
+export type TimetableConflictType = "teacher" | "batch" | "room";
+
+export type ConflictEntryShape = {
+  id: string;
+  dayOfWeek: TimetableDay;
+  startMinute: number;
+  endMinute: number;
+  course: { code: string; title: string };
+  teacher: { id: string; name: string };
+  batch: { id: string; name: string; section: string };
+  room: { id: string; roomNumber: string };
+};
+
+export type TimetableConflictPair<T extends ConflictEntryShape> = {
+  type: TimetableConflictType;
+  first: T;
+  second: T;
+};
+
+/**
+ * Finds pairs of classes that overlap for the same teacher, batch, or room.
+ * A single pair can generate more than one conflict type when several
+ * resources are shared.
+ */
+export function findTimetableConflictPairs<T extends ConflictEntryShape>(
+  entries: T[],
+): TimetableConflictPair<T>[] {
+  const sorted = sortTimetableEntries(entries);
+  const pairs: TimetableConflictPair<T>[] = [];
+
+  for (let firstIndex = 0; firstIndex < sorted.length; firstIndex += 1) {
+    const first = sorted[firstIndex];
+
+    for (
+      let secondIndex = firstIndex + 1;
+      secondIndex < sorted.length;
+      secondIndex += 1
+    ) {
+      const second = sorted[secondIndex];
+
+      if (second.dayOfWeek !== first.dayOfWeek) {
+        break;
+      }
+
+      if (
+        !intervalsOverlap(
+          first.startMinute,
+          first.endMinute,
+          second.startMinute,
+          second.endMinute,
+        )
+      ) {
+        continue;
+      }
+
+      if (first.teacher.id === second.teacher.id) {
+        pairs.push({ type: "teacher", first, second });
+      }
+
+      if (first.batch.id === second.batch.id) {
+        pairs.push({ type: "batch", first, second });
+      }
+
+      if (first.room.id === second.room.id) {
+        pairs.push({ type: "room", first, second });
+      }
+    }
+  }
+
+  return pairs;
+}
+
+export type UpcomingTimetableEntry<T> = {
+  entry: T;
+  daysAhead: number;
+  inProgress: boolean;
+};
+
+/**
+ * Selects the next class for a recurring weekly timetable. Classes that have
+ * already ended today are skipped, so the result wraps to the following week.
+ */
+export function findUpcomingTimetableEntry<
+  T extends {
+    dayOfWeek: TimetableDay;
+    startMinute: number;
+    endMinute: number;
+  },
+>(
+  entries: T[],
+  todayDay: TimetableDay,
+  nowMinutes: number,
+): UpcomingTimetableEntry<T> | null {
+  let best: UpcomingTimetableEntry<T> | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  const todayIndex = dayIndex(todayDay);
+
+  for (const entry of entries) {
+    const daysAhead = (dayIndex(entry.dayOfWeek) - todayIndex + 7) % 7;
+
+    if (daysAhead === 0 && entry.endMinute <= nowMinutes) {
+      continue;
+    }
+
+    const inProgress =
+      daysAhead === 0 &&
+      entry.startMinute <= nowMinutes &&
+      entry.endMinute > nowMinutes;
+    const score = daysAhead * 24 * 60 + entry.startMinute;
+
+    if (score < bestScore) {
+      best = { entry, daysAhead, inProgress };
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
+export function describeUpcomingEntry(
+  upcoming: UpcomingTimetableEntry<{
+    dayOfWeek: TimetableDay;
+    startMinute: number;
+    endMinute: number;
+  }>,
+): string {
+  const time = formatTimeRange(
+    upcoming.entry.startMinute,
+    upcoming.entry.endMinute,
+  );
+
+  if (upcoming.inProgress) {
+    return `In progress · ${time}`;
+  }
+
+  if (upcoming.daysAhead === 0) {
+    return `Today · ${time}`;
+  }
+
+  if (upcoming.daysAhead === 1) {
+    return `Tomorrow · ${time}`;
+  }
+
+  return `${DAY_LABELS[upcoming.entry.dayOfWeek]} · ${time}`;
+}

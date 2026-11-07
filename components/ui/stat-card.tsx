@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { cn } from "@/lib/utils/cn";
 
 const statTones = {
@@ -14,6 +16,7 @@ type StatCardProps = {
   value: string;
   detail: string;
   tone?: StatTone;
+  href?: string;
   className?: string;
 };
 
@@ -22,15 +25,19 @@ export function StatCard({
   value,
   detail,
   tone = "emerald",
+  href,
   className,
 }: StatCardProps) {
-  return (
-    <div
-      className={cn(
-        "relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900",
-        className,
-      )}
-    >
+  const classes = cn(
+    "relative block overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 shadow-sm",
+    href &&
+      "transition-colors hover:border-emerald-300 hover:bg-emerald-50/30 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/20",
+    "dark:border-zinc-800 dark:bg-zinc-900",
+    className,
+  );
+
+  const content = (
+    <>
       <span
         aria-hidden="true"
         className={cn("absolute inset-x-0 top-0 h-1", statTones[tone])}
@@ -41,9 +48,19 @@ export function StatCard({
       <p className="mt-3 text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
         {value}
       </p>
-      <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+      <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
         {detail}
       </p>
-    </div>
+    </>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className={classes}>
+        {content}
+      </Link>
+    );
+  }
+
+  return <div className={classes}>{content}</div>;
 }

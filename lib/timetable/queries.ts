@@ -113,11 +113,13 @@ export async function getTimetableEntries({
   batchId,
   teacherId,
   dayOfWeek,
+  q,
 }: {
   departmentId: string;
   batchId?: string;
   teacherId?: string;
   dayOfWeek?: TimetableDay;
+  q?: string;
 }) {
   return prisma.timetableEntry.findMany({
     where: {
@@ -125,6 +127,18 @@ export async function getTimetableEntries({
       ...(batchId ? { batchId } : {}),
       ...(teacherId ? { teacherId } : {}),
       ...(dayOfWeek ? { dayOfWeek } : {}),
+      ...(q
+        ? {
+            OR: [
+              { course: { code: { contains: q, mode: "insensitive" } } },
+              { course: { title: { contains: q, mode: "insensitive" } } },
+              { teacher: { name: { contains: q, mode: "insensitive" } } },
+              {
+                room: { roomNumber: { contains: q, mode: "insensitive" } },
+              },
+            ],
+          }
+        : {}),
     },
     select: entrySelect,
     orderBy: [{ dayOfWeek: "asc" }, { startMinute: "asc" }, { id: "asc" }],

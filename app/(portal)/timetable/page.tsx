@@ -29,6 +29,7 @@ import {
   type TimetableDay,
 } from "@/lib/timetable/rules";
 import { buildNewEntryHref, buildTimetableHref } from "@/lib/timetable/urls";
+import { timetableFilterSchema } from "@/lib/validation/timetable";
 
 export const metadata: Metadata = {
   title: "Timetable",
@@ -116,9 +117,17 @@ export default async function TimetablePage({
   );
   const stats = await getTimetableStats(user.department.id, todayDay);
 
-  const requestedBatch = first(params.batch) ?? "";
-  const requestedTeacher = first(params.teacher) ?? "";
-  const requestedDay = first(params.day) ?? "";
+  const parsedFilters = timetableFilterSchema.parse({
+    batch: first(params.batch),
+    teacher: first(params.teacher),
+    day: first(params.day),
+    q: first(params.q),
+  });
+
+  const requestedBatch = parsedFilters.batch;
+  const requestedTeacher = parsedFilters.teacher;
+  const requestedDay = parsedFilters.day;
+  const requestedQuery = parsedFilters.q;
 
   const validBatch = batches.some((batch) => batch.id === requestedBatch)
     ? requestedBatch
@@ -145,12 +154,14 @@ export default async function TimetablePage({
     batchId: validBatch || undefined,
     teacherId: validTeacher || undefined,
     dayOfWeek,
+    q: requestedQuery || undefined,
   });
 
   const filters = {
     batchId: validBatch,
     teacherId: validTeacher,
     day: validDay,
+    q: requestedQuery,
   };
   const returnTo = buildTimetableHref(filters);
   const newEntryDay = validDay && validDay !== "today" ? validDay : todayDay;

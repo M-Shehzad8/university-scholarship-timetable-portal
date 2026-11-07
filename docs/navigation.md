@@ -1,6 +1,6 @@
 # Navigation and Dashboard Design
 
-> **Status:** Phase 4 complete. The portal requires authentication, navigation is filtered by role, dashboards show the signed-in user, coordinators can manage accounts, the scholarship module is live, and the timetable and room modules are live. Dashboard figures and reports remain placeholders until Phase 5.
+> **Status:** Phase 5 complete. The portal requires authentication, navigation is filtered by role, dashboards show live role-specific data, coordinators can manage accounts, the scholarship, timetable, and room modules are live, and the notification centre and read-only reports are live.
 
 ## 1. Goals
 
@@ -15,7 +15,8 @@
 | ---------------------- | --------------------------------- | -------------------------------------------------- | --------------------------------------------------------- |
 | `/`                    | Public overview                   | Public landing page                                | Explains the portal and links to sign in                  |
 | `/login`               | Anonymous                         | Login form with demo-account hint                  | Authenticate and start a session                          |
-| `/dashboard`           | All authenticated roles           | Protected, role-specific summary with placeholders | Role-specific live summaries and shortcuts                |
+| `/dashboard`           | All authenticated roles           | Live role-specific summaries and shortcuts          | Role-specific live summaries and shortcuts                |
+| `/notifications`       | All authenticated roles           | Live per-user notification centre and read actions  | Scholarship and timetable updates for the signed-in user  |
 | `/scholarships`        | Students; staff management        | Live catalogue, filters, bookmarks, staff CRUD     | Search, filter, detail, save, and staff maintenance       |
 | `/timetable`           | Students; staff/coordinator views | Live filtered schedule and student batch view      | Weekly timetable, batch/teacher views, conflict checks    |
 | `/timetable/new`       | Staff                             | Live create form                                   | Add a conflict-checked timetable row                      |
@@ -24,7 +25,7 @@
 | `/timetable/teachers`  | Staff; coordinator read-only      | Live teacher CRUD                                  | Maintain department teacher reference data                |
 | `/timetable/batches`   | Staff; coordinator read-only      | Live batch/section CRUD                            | Maintain department batch reference data                  |
 | `/rooms`               | Staff and coordinator             | Live room CRUD and today's usage                   | Department room records and availability                  |
-| `/reports`             | Staff and coordinator             | Protected report definition cards                  | Active/expiring scholarships, timetable, rooms, conflicts |
+| `/reports`             | Staff and coordinator             | Live scholarship, timetable, room, and conflict reports | Active/expiring scholarships, timetable, rooms, conflicts |
 | `/users`               | Coordinator                       | Live account, role, and activation controls        | User, role, batch, and department management              |
 
 The portal routes are grouped under `app/(portal)/` so the shared shell does not wrap the public landing page. The route group does not appear in the URL.
@@ -33,12 +34,14 @@ The portal routes are grouped under `app/(portal)/` so the shared shell does not
 
 The shell renders only the groups available to the signed-in role. The server remains the security boundary: page guards and server actions reject access even if a URL is typed directly. Hiding a link is never sufficient authorization.
 
-| Group          | Items                   | Visible to            |
-| -------------- | ----------------------- | --------------------- |
-| Overview       | Dashboard               | Every signed-in role  |
-| Academic       | Scholarships, Timetable | Every signed-in role  |
-| Operations     | Rooms, Reports          | Staff and coordinator |
-| Administration | People                  | Coordinator           |
+| Group          | Items                              | Visible to            |
+| -------------- | ---------------------------------- | --------------------- |
+| Overview       | Dashboard, Notifications           | Every signed-in role  |
+| Academic       | Scholarships, Timetable            | Every signed-in role  |
+| Operations     | Rooms, Reports                     | Staff and coordinator |
+| Administration | People                             | Coordinator           |
+
+Notifications is a first-class overview item because it combines updates from both academic modules. The unread count appears next to the item and is recalculated by the portal layout after read actions.
 
 ## 4. Page shell
 
@@ -46,7 +49,7 @@ The shell renders only the groups available to the signed-in role. The server re
 ┌──────────────────────────────────────────────────────────────┐
 │ Sidebar / mobile navigation                                  │
 │  University Portal                                           │
-│  Dashboard · Scholarships · Timetable                        │
+│  Dashboard · Notifications · Scholarships · Timetable        │
 │  Rooms · Reports · People (role-filtered)                    │
 │  Signed-in name · role badge · email · scope                 │
 ├──────────────────────────────────────────────────────────────┤
@@ -82,7 +85,7 @@ Behaviour:
 | Today's classes     | Entries for the student's batch on the current weekday |
 | Next class          | The next upcoming entry for the student's batch        |
 
-The dashboard renders only the metrics and shortcuts for the signed-in role. A student sees the student summary; staff and coordinators see the operational summary. The coordinator additionally receives the People shortcut and account-management access.
+The student dashboard also shows the next class card, a closing-soon list, recent notifications, and account scope. The dashboard renders only the metrics and shortcuts for the signed-in role. A student sees the student summary; staff and coordinators see the operational summary. The coordinator additionally receives the People shortcut and account-management access.
 
 Each card links to the relevant filtered list or timetable view.
 
@@ -92,12 +95,12 @@ Each card links to the relevant filtered list or timetable view.
 | ------------------- | -------------------------------------------------- |
 | Active scholarships | Published records whose deadline has not passed    |
 | Expiring soon       | Active records with a deadline within 14 days      |
-| Total rooms         | Department rooms                                   |
 | Classes scheduled   | Timetable entries in scope                         |
-| Free rooms today    | Department rooms with no class in the current slot |
+| Today's classes     | Entries on the current portal weekday              |
+| Free rooms now      | Department rooms with no class in the current slot |
 | Timetable conflicts | Overlaps present in data that need staff attention |
 
-The coordinator has the same operational signal as staff, plus access to people and department-wide reports. The dashboard is not a full analytics product.
+The operational dashboard also shows today's class list, free and occupied rooms, a conflict watch summary, recent notifications, and account scope. Coordinators see an additional active-account card. The coordinator has the same operational signal as staff, plus access to people and department-wide reports. The dashboard is not a full analytics product.
 
 ## 6. UI component foundation
 
@@ -114,7 +117,7 @@ The coordinator has the same operational signal as staff, plus access to people 
 | `EmptyState`         | `components/ui/empty-state.tsx`                 | Clear no-data guidance                                   |
 | `Alert`              | `components/ui/alert.tsx`                       | Inline information, success, warning, and error          |
 | `PageHeader`         | `components/ui/page-header.tsx`                 | Page title, description, and action area                 |
-| `StatCard`           | `components/ui/stat-card.tsx`                   | Dashboard metric demonstration                           |
+| `StatCard`           | `components/ui/stat-card.tsx`                   | Live dashboard and report metric                         |
 | `PortalShell`        | `components/portal/portal-shell.tsx`            | Sidebar, account card, top bar, content area, and footer |
 | `PortalNav`          | `components/portal/portal-nav.tsx`              | Active-route navigation, filtered by role                |
 | `LoginForm`          | `app/login/login-form.tsx`                      | Client login form using `useActionState`                 |
@@ -123,6 +126,9 @@ The coordinator has the same operational signal as staff, plus access to people 
 | `TimetableEntryForm` | `components/timetable/timetable-entry-form.tsx` | Client create/edit form with server feedback             |
 | `ReferenceManager`   | `components/timetable/reference-manager.tsx`    | Shared reference table plus staff create/edit panel      |
 | `StudentTimetable`   | `components/timetable/student-timetable.tsx`    | Student today, next-class, and weekly views              |
+| `NotificationList`   | `components/notifications/notification-list.tsx` | Per-user notification list, unread marker, and read action |
+| `ReportsOverview`    | `components/reports/reports-overview.tsx`       | Scholarship, timetable, room, and conflict summaries      |
+| `PageLoading`        | `components/portal/page-loading.tsx`             | Shared loading skeleton for dashboard, reports, and notifications |
 
 Navigation data and the role filter live in `lib/portal/navigation.ts`. Authentication modules live in `lib/auth/`. The class-name helper lives in `lib/utils/cn.ts`.
 
@@ -135,7 +141,7 @@ Every data screen introduced later must define:
 - **Error:** a readable message with a retry path; errors never expose internals.
 - **Success:** the normal content with no misleading placeholder values.
 
-The portal includes a route-level loading skeleton, in-shell and root error boundaries, explicit empty/placeholder states, and login, user-management, scholarship, and timetable mutation feedback. Live dashboard summaries and reports remain Phase 5 work.
+The portal includes a shared route-level loading skeleton plus dedicated dashboard, report, and notification loading files, in-shell and root error boundaries, explicit empty states, and login, user-management, scholarship, timetable, and notification mutation feedback. Dashboard summaries, notifications, and reports are live and read from the database on each request.
 
 ## 8. Responsive and accessibility rules
 
@@ -153,4 +159,4 @@ The portal includes a route-level loading skeleton, in-shell and root error boun
 - Phase 2 is implemented: authentication, session handling, role checks, protected routes, role-specific navigation, role-specific dashboards, and coordinator user management.
 - Phase 3 is implemented: the scholarship catalogue, search, filters, detail pages, bookmarks, and staff lifecycle actions.
 - Phase 4 is implemented: timetable and room reference data, timetable row CRUD, conflict checks, automatic room assignment, role-aware timetable views, and today's room usage.
-- Phase 5 replaces dashboard placeholders and report definitions with live summaries.
+- Phase 5 is implemented: live role-specific dashboards, timetable search refinement, the notification centre with read state and unread badge, timetable-change notifications, and read-only scholarship/timetable/room/conflict reports.

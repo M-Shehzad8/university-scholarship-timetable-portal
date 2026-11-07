@@ -30,6 +30,12 @@ export const portalNavigation: PortalNavGroup[] = [
         description: "Role-based summaries and shortcuts",
         roles: ALL_ROLES,
       },
+      {
+        href: "/notifications",
+        label: "Notifications",
+        description: "Scholarship and timetable updates for your account",
+        roles: ALL_ROLES,
+      },
     ],
   },
   {
@@ -61,7 +67,7 @@ export const portalNavigation: PortalNavGroup[] = [
       {
         href: "/reports",
         label: "Reports",
-        description: "Focused operational summaries",
+        description: "Live operational summaries",
         roles: STAFF_ROLES,
       },
     ],

@@ -127,6 +127,27 @@ export async function getStudentScholarshipStats(userId: string) {
   return { active, closingSoon, saved };
 }
 
+export async function getClosingSoonScholarships(take = 4) {
+  const today = todayDateOnly();
+  const soonLimit = addDaysDateOnly(today, CLOSING_SOON_DAYS);
+
+  return prisma.scholarship.findMany({
+    where: {
+      status: "PUBLISHED",
+      deadline: { gte: today, lte: soonLimit },
+    },
+    select: {
+      id: true,
+      title: true,
+      provider: true,
+      category: true,
+      deadline: true,
+    },
+    orderBy: [{ deadline: "asc" }, { title: "asc" }],
+    take,
+  });
+}
+
 export async function getScholarshipCategories(role: Role) {
   const where: Prisma.ScholarshipWhereInput =
     role === "STUDENT"

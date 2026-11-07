@@ -15,9 +15,11 @@ import { filterNavigationByRole } from "@/lib/portal/navigation";
 
 export function PortalShell({
   user,
+  unreadCount = 0,
   children,
 }: {
   user: AuthenticatedUser;
+  unreadCount?: number;
   children: ReactNode;
 }) {
   const navigation = filterNavigationByRole(user.role);
@@ -51,7 +53,7 @@ export function PortalShell({
               </span>
             </Link>
 
-            <PortalNav groups={navigation} />
+            <PortalNav groups={navigation} unreadCount={unreadCount} />
 
             <div className="mt-auto hidden rounded-xl border border-zinc-200 bg-zinc-50 p-4 lg:block dark:border-zinc-800 dark:bg-zinc-900/60">
               <div className="flex items-center justify-between gap-2">
@@ -113,7 +115,7 @@ export function PortalShell({
           <footer className="border-t border-zinc-200 px-4 py-4 text-xs text-zinc-500 sm:px-6 lg:px-8 dark:border-zinc-800 dark:text-zinc-400">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <p>University Scholarship and Academic Timetable Portal</p>
-              <p>Phase 2 · Authentication and roles</p>
+              <p>Phase 5 · Integrated dashboards, notifications, and reports</p>
             </div>
           </footer>
         </div>

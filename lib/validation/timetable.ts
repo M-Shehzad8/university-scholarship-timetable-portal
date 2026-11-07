@@ -134,6 +134,7 @@ export const timetableFilterSchema = z.object({
   batch: z.string().trim().max(100).catch(""),
   teacher: z.string().trim().max(100).catch(""),
   day: z.string().trim().max(20).catch(""),
+  q: z.string().trim().max(100).catch(""),
 });
 
 export const deleteReferenceSchema = z.object({

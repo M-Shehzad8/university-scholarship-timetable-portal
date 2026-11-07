@@ -2,6 +2,7 @@ export type TimetableFilters = {
   batchId: string;
   teacherId: string;
   day: string;
+  q: string;
 };
 
 export function buildTimetableHref(filters: TimetableFilters): string {
@@ -17,6 +18,10 @@ export function buildTimetableHref(filters: TimetableFilters): string {
 
   if (filters.day) {
     params.set("day", filters.day);
+  }
+
+  if (filters.q) {
+    params.set("q", filters.q);
   }
 
   const query = params.toString();

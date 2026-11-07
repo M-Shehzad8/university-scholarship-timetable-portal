@@ -69,12 +69,13 @@ export function StaffTimetableManager({
       : null,
     selectedTeacher ? `teacher ${selectedTeacher.name}` : null,
     dayLabel ? dayLabel.toLowerCase() : null,
+    filters.q ? `search "${filters.q}"` : null,
   ]
     .filter(Boolean)
     .join(", ");
 
   const hasFilters = Boolean(
-    filters.batchId || filters.teacherId || filters.day,
+    filters.batchId || filters.teacherId || filters.day || filters.q,
   );
 
   return (
@@ -120,8 +121,9 @@ export function StaffTimetableManager({
             <div>
               <CardTitle>Filter the timetable</CardTitle>
               <CardDescription>
-                Filter by batch, teacher, or day. The today shortcut resolves to
-                the portal&apos;s current weekday.
+                Filter by batch, teacher, day, or a free-text search across
+                course, teacher, and room. The today shortcut resolves to the
+                portal&apos;s current weekday.
               </CardDescription>
             </div>
             {hasFilters ? <Badge tone="info">Filtered</Badge> : null}

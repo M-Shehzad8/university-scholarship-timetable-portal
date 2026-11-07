@@ -13,10 +13,12 @@ flowchart TB
     Next --> Scholarship[Scholarship module]
     Next --> Timetable[Timetable module]
     Next --> Notifications[In-app notifications]
+    Next --> Reports[Read-only reports]
 
     Scholarship --> Domain[Shared domain rules]
     Timetable --> Domain
     Notifications --> Data[Data access layer]
+    Reports --> Data
     Auth --> Data
     Domain --> Data
 
@@ -65,7 +67,12 @@ app/
     ├── layout.tsx             Authenticated shell; requires a session
     ├── error.tsx              In-shell error boundary
     ├── loading.tsx            Route-level loading skeleton
-    ├── dashboard/page.tsx
+    ├── dashboard/
+    │   ├── page.tsx           Live role-specific summary
+    │   └── loading.tsx        Dashboard loading skeleton
+    ├── notifications/
+    │   ├── page.tsx           Per-user notification centre and read actions
+    │   └── loading.tsx        Notification loading skeleton
     ├── scholarships/
     │   ├── page.tsx           Student catalogue or staff management
     │   ├── new/page.tsx       Staff-only create form
@@ -83,7 +90,9 @@ app/
     │   ├── teachers/page.tsx  Staff CRUD, coordinator read-only
     │   └── batches/page.tsx   Staff CRUD, coordinator read-only
     ├── rooms/page.tsx         Room CRUD and today's usage
-    ├── reports/page.tsx
+    ├── reports/
+    │   ├── page.tsx           Staff/coordinator live report summaries
+    │   └── loading.tsx        Report loading skeleton
     └── users/page.tsx
 ```
 
@@ -121,6 +130,7 @@ The generated client is written to `lib/generated/prisma/` and ignored by Git. I
 - Schema and migrations live in `prisma/`.
 - The shared client lives in `lib/db/prisma.ts`.
 - Module reads live beside their module, for example `lib/scholarships/queries.ts`; module writes live in `lib/scholarships/actions.ts`.
+- Cross-module read models live in `lib/dashboard/queries.ts`, `lib/reports/queries.ts`, and `lib/notifications/queries.ts`. They combine module data without duplicating business rules.
 - Framework-free business rules live in `lib/scholarships/rules.ts` and `lib/timetable/rules.ts` so pages, actions, and the seed script share one definition.
 - Shared calendar helpers live in `lib/time/portal.ts`; scholarship rules re-export them so existing imports keep one source of truth.
 - Pages do not build ad-hoc queries inline when the same query is needed elsewhere.
@@ -138,7 +148,7 @@ Implemented in Phase 3:
 - Staff and coordinator management: create drafts, edit, publish, archive, mark expired, and delete.
 - Draft, active, closing-soon, expired, and archived states derived from stored status plus the calendar deadline.
 - Expired records stay readable to students who reach them directly, but cannot be newly saved.
-- Publication creates notification rows for active students; explicit expiry notifies students who saved the record. The notification centre UI remains Phase 5 work.
+- Publication creates notification rows for active students; explicit expiry notifies students who saved the record. These rows are shown in the notification centre.
 
 Business rules live in `lib/scholarships/rules.ts`. The portal treats `Asia/Karachi` as its calendar time zone and compares `@db.Date` deadlines at UTC midnight, which keeps "today" deterministic for every request and for the seed script.
 
@@ -151,7 +161,7 @@ Reads live in `lib/scholarships/queries.ts`, writes in `lib/scholarships/actions
 Implemented in Phase 4:
 
 - Staff maintain courses, teachers, batches/sections, and rooms per department. Coordinators see the same reference data read-only.
-- The timetable page is a table-first schedule with batch, teacher, day, and today filters. Staff can add, edit, and delete rows; coordinators see the same schedule without mutation controls.
+- The timetable page is a table-first schedule with batch, teacher, day, today, and free-text filters. The search matches course code, course title, teacher name, and room number. Staff can add, edit, and delete rows; coordinators see the same schedule without mutation controls.
 - Students see only their linked batch timetable, with today's classes and the next class. A student without a batch receives an explicit explanation.
 - Every save re-checks teacher, batch, and room conflicts on the server using one shared interval rule.
 - Automatic room assignment is deterministic: department rooms are ordered by `roomNumber ASC, id ASC`, overlapping rooms are removed, and the first remaining room is assigned. If none remain, the action returns an explicit no-room result and writes nothing.
@@ -166,7 +176,9 @@ AND
 existingEnd > newStart
 ```
 
-Class times are stored as minutes from midnight, so the comparison is deterministic and easy to test. Reads live in `lib/timetable/queries.ts`, mutations in `lib/timetable/actions.ts`, rules in `lib/timetable/rules.ts`, and validation in `lib/validation/timetable.ts`. Phase 4 does not create timetable notifications; those remain Phase 5 work.
+Class times are stored as minutes from midnight, so the comparison is deterministic and easy to test. Reads live in `lib/timetable/queries.ts`, mutations in `lib/timetable/actions.ts`, rules in `lib/timetable/rules.ts`, and validation in `lib/validation/timetable.ts`.
+
+Timetable create, update, and delete actions notify the active students in the affected batches through `lib/notifications/timetable.ts`. An update notifies both the previous and the new batch when the batch changes. Notification insertion is best-effort: a failure is logged and never rolls back or blocks the saved schedule change.
 
 ### 6.3 Authentication and authorization
 
@@ -197,14 +209,17 @@ request -> hash cookie token -> look up session -> check expiry and isActive
 
 Notifications are in-system records only. Reports are small read-only summaries. Neither module requires an external service, SMS, WhatsApp, email, or push infrastructure.
 
-Phase 3 creates two notification types as side effects of scholarship actions:
+Implemented in Phase 5:
 
-- `SCHOLARSHIP_PUBLISHED` for every active student when a record is published.
-- `SCHOLARSHIP_EXPIRED` for every student who saved the record when staff explicitly expire it.
-
-Phase 4 timetable changes do not create notifications. `TIMETABLE_CHANGED`, `ROOM_ASSIGNED`, and `TIMETABLE_CONFLICT` remain available enum values for Phase 5.
-
-A notification failure is logged but does not roll back the scholarship change. The notification centre, read state, and badge count are Phase 5 work.
+- `/notifications` lists only rows owned by the signed-in account. Users can switch between all and unread views, mark one message read, or mark every unread message read. The portal navigation shows the unread count.
+- Read actions use the signed-in session and `updateMany` with a `userId` constraint, so a crafted notification ID cannot change another account's row.
+- Scholarship publication and expiry rows created in Phase 3 now appear in the centre. The seed adds deadline, room-assignment, and timetable examples for demonstration.
+- Timetable create, update, and delete actions create `TIMETABLE_CHANGED` rows for active students in the affected batches. The message names the course, day, time, and assigned room.
+- A notification failure is logged but never rolls back the scholarship or timetable change that caused it.
+- `/reports` is restricted to staff and coordinators with a department. It shows active scholarships, scholarships closing within 14 days, timetable by batch, timetable by teacher, room usage for the current day, and teacher/batch/room conflicts.
+- The dashboard reads live data through `lib/dashboard/queries.ts`. Students receive scholarship, deadline, saved-record, today's-class, and next-class data. Staff and coordinators receive scholarship, timetable, room, and conflict data; coordinators also see the active-account count.
+- Report queries live in `lib/reports/queries.ts`. They reuse timetable queries and the shared conflict rule rather than recreating either.
+- Reports are deliberately basic. They do not provide charts, exports, scheduled delivery, or historical analytics.
 
 ## 7. Roles
 
@@ -254,7 +269,7 @@ The following decisions are intentionally left to the phase that needs them:
 
 - Testing framework and end-to-end tooling — Phase 6.
 - Deployment target and container setup — Phase 6/7.
-- Optional PDF export — Phase 5/6, only if it does not destabilise the core system.
+- PDF export and scheduled report delivery — not included in Phase 5; revisit only if they do not destabilise the core system.
 
 ## 11. Constraints
 

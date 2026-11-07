@@ -9,6 +9,10 @@ import { requireRole } from "@/lib/auth/dal";
 import type { AuthenticatedUser } from "@/lib/auth/types";
 import { prisma } from "@/lib/db/prisma";
 import {
+  notifyStudentsOfTimetableChange,
+  type TimetableChangeNotification,
+} from "@/lib/notifications/timetable";
+import {
   BATCH_FORM_FIELDS,
   COURSE_FORM_FIELDS,
   ROOM_FORM_FIELDS,
@@ -122,7 +126,20 @@ function withQuery(path: string, params: Record<string, string>): string {
 function revalidateTimetableSurfaces() {
   revalidatePath("/timetable");
   revalidatePath("/rooms");
+  revalidatePath("/notifications");
   revalidatePath("/dashboard");
+}
+
+async function sendTimetableNotifications(
+  change: TimetableChangeNotification,
+): Promise<void> {
+  try {
+    await notifyStudentsOfTimetableChange(change);
+  } catch (error) {
+    // The schedule change has already been saved. A notification failure must
+    // not roll it back or block the redirect.
+    console.error("Timetable change notification failed", error);
+  }
 }
 
 function requireDepartment(user: AuthenticatedUser, fallback: string): string {
@@ -712,8 +729,12 @@ async function validateEntryReferences({
     }
   | {
       courseId: string;
+      courseCode: string;
+      courseTitle: string;
       batchId: string;
+      batchLabel: string;
       teacherId: string;
+      teacherName: string;
       roomId: string;
       roomNumber: string;
       autoAssigned: boolean;
@@ -793,8 +814,12 @@ async function validateEntryReferences({
 
   return {
     courseId: course.id,
+    courseCode: course.code,
+    courseTitle: course.title,
     batchId: batch.id,
+    batchLabel: `${batch.name}-${batch.section}`,
     teacherId: teacher.id,
+    teacherName: teacher.name,
     roomId: room.id,
     roomNumber: room.roomNumber,
     autoAssigned,
@@ -883,6 +908,17 @@ export async function createTimetableEntryAction(
   }
 
   revalidateTimetableSurfaces();
+  await sendTimetableNotifications({
+    batchIds: [reference.batchId],
+    action: "created",
+    courseCode: reference.courseCode,
+    courseTitle: reference.courseTitle,
+    batchLabel: reference.batchLabel,
+    dayOfWeek: parsed.data.dayOfWeek,
+    startMinute,
+    endMinute,
+    roomNumber: reference.roomNumber,
+  });
   const returnPath = sanitizeTimetableReturnPath(parsed.data.returnTo);
   redirect(
     withQuery(returnPath, {
@@ -993,6 +1029,17 @@ export async function updateTimetableEntryAction(
   }
 
   revalidateTimetableSurfaces();
+  await sendTimetableNotifications({
+    batchIds: [existing.batchId, reference.batchId],
+    action: "updated",
+    courseCode: reference.courseCode,
+    courseTitle: reference.courseTitle,
+    batchLabel: reference.batchLabel,
+    dayOfWeek: parsed.data.dayOfWeek,
+    startMinute,
+    endMinute,
+    roomNumber: reference.roomNumber,
+  });
   const returnPath = sanitizeTimetableReturnPath(parsed.data.returnTo);
   redirect(
     withQuery(returnPath, {
@@ -1020,12 +1067,21 @@ export async function deleteTimetableEntryAction(
     redirect(withQuery(returnPath, { problem: "invalid" }));
   }
 
+  const existing = await getTimetableEntryById(
+    parsed.data.entryId,
+    departmentId,
+  );
+
+  if (!existing) {
+    redirect(withQuery(returnPath, { problem: "missing" }));
+  }
+
   let deleted = false;
 
   try {
     const result = await prisma.timetableEntry.deleteMany({
       where: {
-        id: parsed.data.entryId,
+        id: existing.id,
         course: { departmentId },
       },
     });
@@ -1040,5 +1096,16 @@ export async function deleteTimetableEntryAction(
   }
 
   revalidateTimetableSurfaces();
+  await sendTimetableNotifications({
+    batchIds: [existing.batchId],
+    action: "deleted",
+    courseCode: existing.course.code,
+    courseTitle: existing.course.title,
+    batchLabel: `${existing.batch.name}-${existing.batch.section}`,
+    dayOfWeek: existing.dayOfWeek,
+    startMinute: existing.startMinute,
+    endMinute: existing.endMinute,
+    roomNumber: existing.room.roomNumber,
+  });
   redirect(withQuery(returnPath, { notice: "deleted" }));
 }

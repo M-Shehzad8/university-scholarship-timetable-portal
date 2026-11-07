@@ -120,6 +120,7 @@ function withFlashMessage(
 
 function revalidateScholarshipSurfaces(id?: string) {
   revalidatePath("/scholarships");
+  revalidatePath("/notifications");
   revalidatePath("/dashboard");
 
   if (id) {

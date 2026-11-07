@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { DAY_LABELS, TIMETABLE_DAYS } from "@/lib/timetable/rules";
 import {
@@ -23,14 +24,26 @@ export function TimetableFiltersForm({
     batchId: "",
     teacherId: "",
     day: "",
+    q: "",
   });
 
   return (
     <form
       action="/timetable"
       method="get"
-      className="grid gap-4 md:grid-cols-3 xl:grid-cols-[repeat(3,minmax(0,1fr))_auto]"
+      className="grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto]"
     >
+      <Field label="Search" htmlFor="filter-q">
+        <Input
+          id="filter-q"
+          name="q"
+          type="search"
+          defaultValue={filters.q}
+          placeholder="Course, teacher, or room"
+          aria-label="Search the timetable"
+        />
+      </Field>
+
       <Field label="Batch / section" htmlFor="filter-batch">
         <Select
           id="filter-batch"
