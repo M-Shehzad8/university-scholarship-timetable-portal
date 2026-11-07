@@ -212,3 +212,9 @@ Verified Phase 4 flows include course/teacher/batch/room create, edit, duplicate
 Verified Phase 5 flows include live student, staff, and coordinator dashboards; the unread notification badge; individual and bulk mark-read actions; timetable search and empty-state handling; live scholarship, timetable, room, and conflict reports; timetable create/update/delete notifications; and role boundaries for reports, notifications, scholarship editors, timetable editors, and user management.
 
 Verified Phase 6 and 7 flows include 73 passing unit and integration tests, the next-class wrap fix, the dashboard day badge, production security headers, the database-aware health endpoint and its HTTP 503 failure path, Docker Compose startup and migrations, the seeded deployment, role-based access in containers, the 390 px responsive audit, and final database integrity checks.
+
+## License
+
+Copyright © 2026 Mohammad Shehzad Khan. All rights reserved.
+
+This project is proprietary. No part of the source code, documentation, design, or associated assets may be copied, modified, distributed, sublicensed, or used without prior written permission from the copyright holder. See [LICENSE](LICENSE) for the full notice.
