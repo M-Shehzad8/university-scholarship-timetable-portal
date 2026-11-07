@@ -107,6 +107,7 @@ The seed also creates seven demo scholarships covering published, closing-soon, 
 - Notification types cover scholarship publication and expiry, deadline reminders, timetable changes, room assignment, and timetable conflicts. Scholarship actions already create publication and expiry rows; timetable changes create `TIMETABLE_CHANGED` rows.
 - Reports are basic read-only summaries for staff and coordinators: active scholarships, scholarships expiring within 14 days, timetable by batch, timetable by teacher, room usage today, and teacher/batch/room conflicts.
 - Reports are intentionally small and explainable. They are not an analytics platform, and PDF export is not included.
+- The interface is responsive and includes a persisted light/dark theme toggle in the public, login, and portal headers.
 
 ## Available scripts
 
@@ -199,13 +200,10 @@ The app exposes `/api/health`, which returns HTTP 503 when PostgreSQL is unreach
 - [Database design](docs/database.md)
 - [Navigation and dashboards](docs/navigation.md)
 - [Deployment](docs/deployment.md)
-- [Final report](docs/final_report.md)
-- [Viva demonstration script](docs/viva/demo-script.md)
-- [Viva questions and answers](docs/viva/questions-and-answers.md)
 
 ## Status
 
-Phases 1 to 8 are complete. Authentication, database-backed sessions, bcrypt password hashing, role guards, protected portal routes, role-aware navigation, live role-specific dashboards, the scholarship module, the timetable module, the notification centre, basic read-only reports, automated tests, the Docker deployment, and the viva materials are in place.
+The project is complete. Authentication, database-backed sessions, bcrypt password hashing, role guards, protected portal routes, role-aware navigation, live role-specific dashboards, the scholarship module, the timetable module, the notification centre, basic read-only reports, automated tests, and the Docker deployment are in place.
 
 Verified Phase 3 flows include student search/filter/saved views, draft and archived detail protection, bookmark save/remove/cascade, staff create/edit/publish/archive/expire/delete, past-deadline publication rejection, field-level validation errors, and publication/expiry notification rows.
 

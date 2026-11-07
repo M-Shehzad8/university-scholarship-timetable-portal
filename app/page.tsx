@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonStyles } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const modules = [
   {
@@ -53,12 +54,15 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <Link
-            href="/login"
-            className={buttonStyles({ variant: "secondary", size: "sm" })}
-          >
-            Sign in
-          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link
+              href="/login"
+              className={buttonStyles({ variant: "secondary", size: "sm" })}
+            >
+              Sign in
+            </Link>
+          </div>
         </div>
       </header>
 

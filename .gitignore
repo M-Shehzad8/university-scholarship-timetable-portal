@@ -45,8 +45,9 @@ next-env.d.ts
 /plan.md
 /AGENTS.md
 
-# local learning reports (not committed)
+# local learning and presentation artefacts (not committed)
 /docs/reports/
+/docs/viva/
 
 # generated Prisma client (recreated by `npm run db:generate`)
 /lib/generated/

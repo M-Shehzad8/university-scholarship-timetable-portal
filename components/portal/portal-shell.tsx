@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { PortalNav } from "@/components/portal/portal-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { logout } from "@/lib/auth/actions";
 import {
   getUserScopeLabel,
@@ -89,6 +90,7 @@ export function PortalShell({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                <ThemeToggle />
                 <Link
                   href="/"
                   className="hidden text-xs font-medium text-zinc-600 transition-colors hover:text-emerald-700 sm:inline dark:text-zinc-400 dark:hover:text-emerald-400"

@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { getCurrentUser } from "@/lib/auth/dal";
 
 import { LoginForm } from "./login-form";
@@ -67,12 +68,15 @@ export default async function LoginPage() {
               </span>
             </span>
           </Link>
-          <Link
-            href="/"
-            className="text-xs font-medium text-zinc-600 transition-colors hover:text-emerald-700 dark:text-zinc-400 dark:hover:text-emerald-400"
-          >
-            Public overview
-          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link
+              href="/"
+              className="text-xs font-medium text-zinc-600 transition-colors hover:text-emerald-700 dark:text-zinc-400 dark:hover:text-emerald-400"
+            >
+              Public overview
+            </Link>
+          </div>
         </div>
       </header>
 

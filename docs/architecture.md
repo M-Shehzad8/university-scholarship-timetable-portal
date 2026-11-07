@@ -59,7 +59,7 @@ app/
 ├── layout.tsx                 Root document, fonts, metadata
 ├── page.tsx                   Public portal overview
 ├── error.tsx                  Root error boundary
-├── globals.css                Tailwind theme and base typography
+├── globals.css                Tailwind theme, dark-mode variant, and base typography
 ├── api/health/route.ts        Database-aware deployment health check
 ├── login/
 │   ├── page.tsx               Public login page
@@ -113,7 +113,7 @@ Prisma 7.10.1 is used with the `prisma-client` generator and the `@prisma/adapte
 
 - a readable schema that maps directly to the ER model;
 - generated TypeScript types for every model and relation;
-- a migration history that is easy to explain in a viva;
+- a migration history that is easy to explain;
 - a simple path from schema design to PostgreSQL queries.
 
 The decision is recorded here and must remain consistent across phases.
@@ -203,7 +203,7 @@ Implemented in Phase 2:
 
 Authorization helpers live in `lib/auth/dal.ts` and are reused rather than reimplemented per page. Hiding a navigation item is only a usability measure; the server guard remains the security boundary.
 
-The session strategy is intentionally simple enough to explain in a viva:
+The session strategy is intentionally simple enough to explain clearly:
 
 ```text
 token = random 256-bit value
@@ -325,7 +325,7 @@ The following items are intentionally out of scope:
 
 ## 13. Constraints
 
-The architecture must remain explainable in a viva:
+The architecture must remain explainable:
 
 - One application, not a set of microservices.
 - Deterministic business rules, not optimisation or machine learning.

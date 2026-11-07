@@ -179,7 +179,7 @@ Later phases add their own acceptance criteria.
 - **Maintainability:** TypeScript types, shared domain functions, centralised data access, and no duplicated business rules.
 - **Testability:** interval overlap and room assignment must be testable without a browser.
 - **Performance:** indexes support the documented queries; pagination is added if lists grow beyond a reasonable single page.
-- **Explainability:** every business rule has a short, accurate viva explanation.
+- **Explainability:** every business rule has a short, accurate explanation.
 
 ## 8. Out of scope
 
