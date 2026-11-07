@@ -60,6 +60,7 @@ app/
 ├── page.tsx                   Public portal overview
 ├── error.tsx                  Root error boundary
 ├── globals.css                Tailwind theme and base typography
+├── api/health/route.ts        Database-aware deployment health check
 ├── login/
 │   ├── page.tsx               Public login page
 │   └── login-form.tsx         Client form using useActionState
@@ -75,6 +76,7 @@ app/
     │   └── loading.tsx        Notification loading skeleton
     ├── scholarships/
     │   ├── page.tsx           Student catalogue or staff management
+    │   ├── loading.tsx        Scholarship loading skeleton
     │   ├── new/page.tsx       Staff-only create form
     │   └── [id]/
     │       ├── page.tsx       Detail, bookmark, and staff controls
@@ -82,6 +84,7 @@ app/
     │       └── not-found.tsx  Friendly unavailable-record state
     ├── timetable/
     │   ├── page.tsx           Role-aware schedule: staff editor, coordinator read-only, student batch view
+    │   ├── loading.tsx        Timetable loading skeleton
     │   ├── new/page.tsx       Staff-only create form
     │   ├── [id]/
     │   │   ├── edit/page.tsx  Staff-only edit form
@@ -89,11 +92,15 @@ app/
     │   ├── courses/page.tsx   Staff CRUD, coordinator read-only
     │   ├── teachers/page.tsx  Staff CRUD, coordinator read-only
     │   └── batches/page.tsx   Staff CRUD, coordinator read-only
-    ├── rooms/page.tsx         Room CRUD and today's usage
+    ├── rooms/
+    │   ├── page.tsx           Room CRUD and today's usage
+    │   └── loading.tsx        Room loading skeleton
     ├── reports/
     │   ├── page.tsx           Staff/coordinator live report summaries
     │   └── loading.tsx        Report loading skeleton
-    └── users/page.tsx
+    └── users/
+        ├── page.tsx           Coordinator user management
+        └── loading.tsx        User loading skeleton
 ```
 
 The `(portal)` folder is a route group, so it does not appear in URLs. The layout requires a valid session, and each page performs its own guard: all roles for the dashboard, scholarships, and timetable; staff or coordinator for scholarship writes, rooms, and reports; coordinator only for people. The layout check alone is not treated as sufficient protection for nested segments.
@@ -263,15 +270,60 @@ A phase is complete only when:
 7. The affected flow is verified manually.
 8. Documentation and the required report are updated.
 
-## 10. Deferred decisions
+## 10. Testing
 
-The following decisions are intentionally left to the phase that needs them:
+The test suite uses Vitest. Tests are split into two groups:
 
-- Testing framework and end-to-end tooling — Phase 6.
-- Deployment target and container setup — Phase 6/7.
-- PDF export and scheduled report delivery — not included in Phase 5; revisit only if they do not destabilise the core system.
+| Group       | Location             | Scope                                                                                 |
+| ----------- | -------------------- | ------------------------------------------------------------------------------------- |
+| Unit        | `tests/unit/`        | Time helpers, interval overlap, conflict pairs, room selection, scholarship state, authorization, and validation |
+| Integration | `tests/integration/` | Real PostgreSQL queries for conflict detection and free-room assignment                |
 
-## 11. Constraints
+Unit tests do not need a database. Integration tests read `DATABASE_URL` from `.env.local` and are skipped when it is absent. Integration tests create an isolated department and remove every row they created after the run.
+
+Commands:
+
+```bash
+npm test                 # every test
+npm run test:unit        # unit tests only
+npm run test:integration # database-backed tests
+```
+
+`npm run check` now runs linting, type checking, Prisma validation, and the full test suite. `npm run build` remains a separate production-build gate.
+
+The tests verify deterministic rules rather than UI snapshots. The main rules under test are:
+
+- end-of-interval boundaries are exclusive, so adjacent classes do not conflict;
+- teacher, batch, and room conflicts are reported separately;
+- the edited timetable row is excluded from its own conflict check;
+- the first free room is chosen in room-number order, or the result is null;
+- published scholarships become closing-soon or expired from the calendar deadline without rewriting stored status;
+- anonymous and wrong-role guards redirect before protected data is read;
+- return paths cannot become open redirects;
+- every server-side Zod schema rejects malformed input.
+
+## 11. Deployment
+
+Deployment uses a multi-stage Dockerfile and Docker Compose:
+
+- PostgreSQL 16 with a persistent volume;
+- a one-shot migration service running `prisma migrate deploy`;
+- a standalone Next.js runtime image running as a non-root user;
+- an optional seed service under the `tools` Compose profile;
+- a database-aware `/api/health` endpoint for container health checks.
+
+Security headers are configured in `next.config.ts` and `X-Powered-By` is disabled. Full operating instructions, environment variables, backup commands, and a verification checklist are in [deployment.md](deployment.md).
+
+## 12. Deferred decisions
+
+The following items are intentionally out of scope:
+
+- PDF export and scheduled report delivery.
+- Email, SMS, or push notification delivery.
+- Multi-department tenancy beyond the seeded department model.
+- Historical timetable versioning and analytics.
+
+## 13. Constraints
 
 The architecture must remain explainable in a viva:
 

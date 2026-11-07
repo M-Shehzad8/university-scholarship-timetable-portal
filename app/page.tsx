@@ -64,7 +64,7 @@ export default function Home() {
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-14 sm:py-20">
         <section className="max-w-3xl">
-          <Badge tone="success">Phase 2 · Secure access</Badge>
+          <Badge tone="success">Secure access</Badge>
           <h1 className="mt-5 text-4xl font-semibold tracking-tight text-zinc-900 sm:text-5xl dark:text-zinc-50">
             Two essential academic services, in one place.
           </h1>
@@ -177,7 +177,7 @@ export default function Home() {
       <footer className="border-t border-zinc-200 px-6 py-6 dark:border-zinc-800">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between dark:text-zinc-400">
           <p>University Scholarship and Academic Timetable Portal</p>
-          <p>Phase 2 · Authentication and roles</p>
+          <p>Secure access</p>
         </div>
       </footer>
     </div>

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@/lib/generated/prisma/client";
 
+import { selectFirstFreeRoom } from "./room-assignment";
 import type { TimetableDay } from "./rules";
 
 const entrySelect = {
@@ -380,5 +381,5 @@ export async function findFreeRoom({
 
   const occupiedRoomIds = new Set(occupied.map((entry) => entry.roomId));
 
-  return rooms.find((room) => !occupiedRoomIds.has(room.id)) ?? null;
+  return selectFirstFreeRoom(rooms, occupiedRoomIds);
 }

@@ -19,7 +19,8 @@ Live role-specific dashboards, an in-system notification centre, and basic read-
 | Validation           | Zod                                         |
 | Authentication       | Database-backed sessions + bcrypt passwords |
 | Linting / formatting | ESLint + Prettier                           |
-| Testing              | Added in the testing phase                  |
+| Testing              | Vitest (unit + database integration)        |
+| Deployment           | Docker Compose + PostgreSQL                 |
 
 ## Requirements
 
@@ -116,7 +117,10 @@ The seed also creates seven demo scholarships covering published, closing-soon, 
 | `npm run start`        | Start the production server                          |
 | `npm run lint`         | Run ESLint                                           |
 | `npm run typecheck`    | Run the TypeScript compiler without emitting files   |
-| `npm run check`        | Run linting, type checking, and Prisma validation    |
+| `npm run check`        | Run linting, type checking, Prisma validation, and tests |
+| `npm test`             | Run the full Vitest suite                            |
+| `npm run test:unit`    | Run unit tests only                                  |
+| `npm run test:integration` | Run database-backed integration tests            |
 | `npm run format`       | Format the project with Prettier                     |
 | `npm run format:check` | Check formatting without changing files              |
 | `npm run db:generate`  | Generate the Prisma client                           |
@@ -146,7 +150,10 @@ fyp-project/
 │   └── validation/      # Server-side Zod schemas
 ├── prisma/              # Schema, migrations, and seed data
 ├── public/              # Static assets
-├── docs/                # Architecture, requirements, database, and UI notes
+├── tests/               # Vitest unit and database integration tests
+├── docs/                # Architecture, requirements, database, deployment, and UI notes
+├── Dockerfile           # Multi-stage build: dependencies, build, migrate, runtime
+├── docker-compose.yml   # PostgreSQL, migrations, app, and optional seed
 └── README.md
 ```
 
@@ -171,6 +178,19 @@ Only variables intended for the browser should use the `NEXT_PUBLIC_` prefix. Al
 - Deactivating an account revokes all of its sessions immediately.
 - Every protected page and server action checks the session and role on the server. Hiding a navigation item is not treated as authorization.
 
+## Testing
+
+- `npm test` runs the complete Vitest suite.
+- Unit tests cover time and interval helpers, teacher/batch/room conflict pairs, deterministic room selection, scholarship deadline states, authorization guards, role navigation, and every server-side validation schema.
+- Integration tests run against PostgreSQL and verify the real conflict and free-room queries. They create isolated data and clean it up afterwards; they are skipped automatically when `DATABASE_URL` is not set.
+- `npm run check` combines linting, type checking, Prisma validation, and tests.
+
+## Deployment
+
+The supported deployment is Docker Compose: PostgreSQL, a one-shot migration service, a standalone Next.js container, and an optional seed profile. See [Deployment](docs/deployment.md) for commands, environment variables, backups, and the verification checklist.
+
+The app exposes `/api/health`, which returns HTTP 503 when PostgreSQL is unreachable. Production responses include security headers and omit `X-Powered-By`.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
@@ -178,13 +198,19 @@ Only variables intended for the browser should use the `NEXT_PUBLIC_` prefix. Al
 - [Use cases](docs/use-cases.md)
 - [Database design](docs/database.md)
 - [Navigation and dashboards](docs/navigation.md)
+- [Deployment](docs/deployment.md)
+- [Final report](docs/final_report.md)
+- [Viva demonstration script](docs/viva/demo-script.md)
+- [Viva questions and answers](docs/viva/questions-and-answers.md)
 
 ## Status
 
-Phase 5 is complete. Authentication, database-backed sessions, bcrypt password hashing, role guards, protected portal routes, role-aware navigation, live role-specific dashboards, the scholarship module, the timetable module, the notification centre, and basic read-only reports are in place.
+Phases 1 to 8 are complete. Authentication, database-backed sessions, bcrypt password hashing, role guards, protected portal routes, role-aware navigation, live role-specific dashboards, the scholarship module, the timetable module, the notification centre, basic read-only reports, automated tests, the Docker deployment, and the viva materials are in place.
 
 Verified Phase 3 flows include student search/filter/saved views, draft and archived detail protection, bookmark save/remove/cascade, staff create/edit/publish/archive/expire/delete, past-deadline publication rejection, field-level validation errors, and publication/expiry notification rows.
 
 Verified Phase 4 flows include course/teacher/batch/room create, edit, duplicate rejection, and in-use delete protection; timetable row create/edit/delete; teacher, batch, and room overlap rejection; automatic room assignment in room-number order; the explicit no-room response; staff/coordinator/student access boundaries; and student batch scoping.
 
 Verified Phase 5 flows include live student, staff, and coordinator dashboards; the unread notification badge; individual and bulk mark-read actions; timetable search and empty-state handling; live scholarship, timetable, room, and conflict reports; timetable create/update/delete notifications; and role boundaries for reports, notifications, scholarship editors, timetable editors, and user management.
+
+Verified Phase 6 and 7 flows include 73 passing unit and integration tests, the next-class wrap fix, the dashboard day badge, production security headers, the database-aware health endpoint and its HTTP 503 failure path, Docker Compose startup and migrations, the seeded deployment, role-based access in containers, the 390 px responsive audit, and final database integrity checks.

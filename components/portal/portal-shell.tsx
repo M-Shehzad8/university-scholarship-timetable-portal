@@ -115,7 +115,7 @@ export function PortalShell({
           <footer className="border-t border-zinc-200 px-4 py-4 text-xs text-zinc-500 sm:px-6 lg:px-8 dark:border-zinc-800 dark:text-zinc-400">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <p>University Scholarship and Academic Timetable Portal</p>
-              <p>Phase 5 · Integrated dashboards, notifications, and reports</p>
+              <p>Academic services</p>
             </div>
           </footer>
         </div>

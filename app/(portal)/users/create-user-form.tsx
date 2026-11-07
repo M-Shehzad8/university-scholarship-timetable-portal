@@ -121,7 +121,7 @@ export function CreateUserForm({
           htmlFor="batchId"
           hint={
             batches.length === 0
-              ? "No batches exist yet. Run npm run db:seed for demo data."
+              ? "No batches exist yet. Add a batch from the timetable reference screens."
               : "Optional. A student account may be linked to one batch."
           }
           error={state?.fieldErrors?.batchId}
@@ -147,7 +147,7 @@ export function CreateUserForm({
           htmlFor="departmentId"
           hint={
             departments.length === 0
-              ? "No departments exist yet. Run npm run db:seed for demo data."
+              ? "No departments exist yet. Add one before creating staff accounts."
               : "Optional. Staff and coordinator accounts may be linked to one department."
           }
           error={state?.fieldErrors?.departmentId}

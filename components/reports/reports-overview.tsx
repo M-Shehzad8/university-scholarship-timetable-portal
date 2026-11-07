@@ -351,7 +351,7 @@ export function ReportsOverview({
         ) : (
           <div className="grid gap-5 xl:grid-cols-2">
             {batchGroups.map(([label, entries]) => (
-              <Card key={label}>
+              <Card key={label} className="min-w-0">
                 <CardHeader>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <CardTitle>{label}</CardTitle>
@@ -395,7 +395,7 @@ export function ReportsOverview({
         ) : (
           <div className="grid gap-5 xl:grid-cols-2">
             {teacherGroups.map(([name, entries]) => (
-              <Card key={name}>
+              <Card key={name} className="min-w-0">
                 <CardHeader>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <CardTitle>{name}</CardTitle>

@@ -352,7 +352,11 @@ export default async function DashboardPage({
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <CardTitle>Next class</CardTitle>
-                <Badge tone="info">{DAY_LABELS[todayDay]}</Badge>
+                <Badge tone="info">
+                  {studentData.upcoming
+                    ? DAY_LABELS[studentData.upcoming.entry.dayOfWeek]
+                    : DAY_LABELS[todayDay]}
+                </Badge>
               </div>
               <CardDescription>
                 The next scheduled class for your linked batch, including its

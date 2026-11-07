@@ -78,7 +78,7 @@ export default async function LoginPage() {
 
       <main className="mx-auto grid w-full max-w-6xl flex-1 gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_430px] lg:items-center lg:py-16">
         <section className="max-w-xl">
-          <Badge tone="success">Phase 2 · Secure access</Badge>
+          <Badge tone="success">Secure access</Badge>
           <h1 className="mt-5 text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl dark:text-zinc-50">
             Sign in to your academic portal.
           </h1>
@@ -162,7 +162,7 @@ export default async function LoginPage() {
       <footer className="border-t border-zinc-200 px-4 py-5 text-xs text-zinc-500 sm:px-6 dark:border-zinc-800 dark:text-zinc-400">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <p>University Scholarship and Academic Timetable Portal</p>
-          <p>Phase 2 · Authentication and roles</p>
+          <p>Secure access</p>
         </div>
       </footer>
     </div>

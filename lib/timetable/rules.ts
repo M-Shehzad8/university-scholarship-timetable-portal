@@ -244,10 +244,12 @@ export function findUpcomingTimetableEntry<
   const todayIndex = dayIndex(todayDay);
 
   for (const entry of entries) {
-    const daysAhead = (dayIndex(entry.dayOfWeek) - todayIndex + 7) % 7;
+    let daysAhead = (dayIndex(entry.dayOfWeek) - todayIndex + 7) % 7;
 
+    // An ended class still occurs next week, so it is a valid answer for the
+    // "next class" summary rather than being dropped entirely.
     if (daysAhead === 0 && entry.endMinute <= nowMinutes) {
-      continue;
+      daysAhead = 7;
     }
 
     const inProgress =
