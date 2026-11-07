@@ -2,7 +2,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { config as loadEnv } from "dotenv";
 
 import { hashPassword } from "../lib/auth/password";
-import type { Role, ScholarshipStatus } from "../lib/generated/prisma/enums";
+import type {
+  DayOfWeek,
+  Role,
+  ScholarshipStatus,
+} from "../lib/generated/prisma/enums";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { addDaysDateOnly, todayDateOnly } from "../lib/scholarships/rules";
 import { passwordPolicySchema } from "../lib/validation/auth";
@@ -82,6 +86,22 @@ async function main() {
     create: {
       name: "BCS",
       section: "7A",
+      departmentId: department.id,
+    },
+  });
+
+  const secondBatch = await prisma.batch.upsert({
+    where: {
+      departmentId_name_section: {
+        departmentId: department.id,
+        name: "BCS",
+        section: "7B",
+      },
+    },
+    update: {},
+    create: {
+      name: "BCS",
+      section: "7B",
       departmentId: department.id,
     },
   });
@@ -269,6 +289,386 @@ async function main() {
     });
   }
 
+  const courseSeeds = [
+    { code: "CS-301", title: "Design and Analysis of Algorithms" },
+    { code: "CS-302", title: "Database Systems" },
+    { code: "CS-303", title: "Operating Systems" },
+    { code: "CS-304", title: "Computer Networks" },
+    { code: "CS-305", title: "Software Engineering" },
+  ];
+
+  const courseIds = new Map<string, string>();
+
+  for (const seed of courseSeeds) {
+    const course = await prisma.course.upsert({
+      where: {
+        departmentId_code: {
+          departmentId: department.id,
+          code: seed.code,
+        },
+      },
+      update: { title: seed.title },
+      create: {
+        code: seed.code,
+        title: seed.title,
+        departmentId: department.id,
+      },
+    });
+
+    courseIds.set(course.code, course.id);
+  }
+
+  const teacherSeeds = [
+    {
+      name: "Dr. Imran Sheikh",
+      email: "imran.sheikh@university.edu",
+    },
+    {
+      name: "Dr. Nadia Raza",
+      email: "nadia.raza@university.edu",
+    },
+    {
+      name: "Mr. Usman Tariq",
+      email: "usman.tariq@university.edu",
+    },
+    {
+      name: "Ms. Hira Qureshi",
+      email: "hira.qureshi@university.edu",
+    },
+    {
+      name: "Dr. Farhan Iqbal",
+      email: "farhan.iqbal@university.edu",
+    },
+  ];
+
+  const teacherIds = new Map<string, string>();
+
+  for (const seed of teacherSeeds) {
+    const teacher = await prisma.teacher.upsert({
+      where: {
+        departmentId_email: {
+          departmentId: department.id,
+          email: seed.email,
+        },
+      },
+      update: { name: seed.name },
+      create: {
+        name: seed.name,
+        email: seed.email,
+        departmentId: department.id,
+      },
+    });
+
+    teacherIds.set(teacher.email ?? seed.email, teacher.id);
+  }
+
+  const roomSeeds = [
+    { roomNumber: "101", building: "Main Block" },
+    { roomNumber: "102", building: "Main Block" },
+    { roomNumber: "103", building: "Main Block" },
+    { roomNumber: "201", building: "CS Block" },
+    { roomNumber: "202", building: "CS Block" },
+    { roomNumber: "203", building: "Lab Block" },
+  ];
+
+  const roomIds = new Map<string, string>();
+
+  for (const seed of roomSeeds) {
+    const room = await prisma.room.upsert({
+      where: {
+        departmentId_roomNumber: {
+          departmentId: department.id,
+          roomNumber: seed.roomNumber,
+        },
+      },
+      update: { building: seed.building },
+      create: {
+        roomNumber: seed.roomNumber,
+        building: seed.building,
+        departmentId: department.id,
+      },
+    });
+
+    roomIds.set(room.roomNumber, room.id);
+  }
+
+  const batchIds = new Map<string, string>([
+    [`${batch.name}-${batch.section}`, batch.id],
+    [`${secondBatch.name}-${secondBatch.section}`, secondBatch.id],
+  ]);
+
+  const minutes = (hour: number, minute = 0) => hour * 60 + minute;
+
+  type DemoEntry = {
+    id: string;
+    courseCode: string;
+    teacherEmail: string;
+    batchLabel: string;
+    roomNumber: string;
+    dayOfWeek: DayOfWeek;
+    startMinute: number;
+    endMinute: number;
+  };
+
+  // A conflict-free demo week: teacher, batch, and room intervals never
+  // overlap. Saturday rows keep the "today" and "next class" views useful.
+  const demoEntries: DemoEntry[] = [
+    {
+      id: "seed-entry-01",
+      courseCode: "CS-301",
+      teacherEmail: "imran.sheikh@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "101",
+      dayOfWeek: "MONDAY",
+      startMinute: minutes(9),
+      endMinute: minutes(10),
+    },
+    {
+      id: "seed-entry-02",
+      courseCode: "CS-302",
+      teacherEmail: "nadia.raza@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "102",
+      dayOfWeek: "MONDAY",
+      startMinute: minutes(9),
+      endMinute: minutes(10),
+    },
+    {
+      id: "seed-entry-03",
+      courseCode: "CS-302",
+      teacherEmail: "nadia.raza@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "101",
+      dayOfWeek: "MONDAY",
+      startMinute: minutes(10),
+      endMinute: minutes(11),
+    },
+    {
+      id: "seed-entry-04",
+      courseCode: "CS-301",
+      teacherEmail: "imran.sheikh@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "102",
+      dayOfWeek: "MONDAY",
+      startMinute: minutes(10),
+      endMinute: minutes(11),
+    },
+    {
+      id: "seed-entry-05",
+      courseCode: "CS-303",
+      teacherEmail: "usman.tariq@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "103",
+      dayOfWeek: "MONDAY",
+      startMinute: minutes(11),
+      endMinute: minutes(12),
+    },
+    {
+      id: "seed-entry-06",
+      courseCode: "CS-303",
+      teacherEmail: "usman.tariq@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "103",
+      dayOfWeek: "TUESDAY",
+      startMinute: minutes(9),
+      endMinute: minutes(10),
+    },
+    {
+      id: "seed-entry-07",
+      courseCode: "CS-304",
+      teacherEmail: "hira.qureshi@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "201",
+      dayOfWeek: "TUESDAY",
+      startMinute: minutes(9),
+      endMinute: minutes(10),
+    },
+    {
+      id: "seed-entry-08",
+      courseCode: "CS-304",
+      teacherEmail: "hira.qureshi@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "201",
+      dayOfWeek: "TUESDAY",
+      startMinute: minutes(10),
+      endMinute: minutes(11),
+    },
+    {
+      id: "seed-entry-09",
+      courseCode: "CS-305",
+      teacherEmail: "farhan.iqbal@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "202",
+      dayOfWeek: "TUESDAY",
+      startMinute: minutes(11),
+      endMinute: minutes(12),
+    },
+    {
+      id: "seed-entry-10",
+      courseCode: "CS-305",
+      teacherEmail: "farhan.iqbal@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "202",
+      dayOfWeek: "WEDNESDAY",
+      startMinute: minutes(9),
+      endMinute: minutes(10),
+    },
+    {
+      id: "seed-entry-11",
+      courseCode: "CS-302",
+      teacherEmail: "nadia.raza@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "101",
+      dayOfWeek: "WEDNESDAY",
+      startMinute: minutes(10),
+      endMinute: minutes(11),
+    },
+    {
+      id: "seed-entry-12",
+      courseCode: "CS-302",
+      teacherEmail: "nadia.raza@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "102",
+      dayOfWeek: "WEDNESDAY",
+      startMinute: minutes(11),
+      endMinute: minutes(12),
+    },
+    {
+      id: "seed-entry-13",
+      courseCode: "CS-303",
+      teacherEmail: "usman.tariq@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "103",
+      dayOfWeek: "WEDNESDAY",
+      startMinute: minutes(12),
+      endMinute: minutes(13),
+    },
+    {
+      id: "seed-entry-14",
+      courseCode: "CS-303",
+      teacherEmail: "usman.tariq@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "103",
+      dayOfWeek: "THURSDAY",
+      startMinute: minutes(9),
+      endMinute: minutes(10),
+    },
+    {
+      id: "seed-entry-15",
+      courseCode: "CS-301",
+      teacherEmail: "imran.sheikh@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "101",
+      dayOfWeek: "THURSDAY",
+      startMinute: minutes(10),
+      endMinute: minutes(11),
+    },
+    {
+      id: "seed-entry-16",
+      courseCode: "CS-301",
+      teacherEmail: "imran.sheikh@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "102",
+      dayOfWeek: "THURSDAY",
+      startMinute: minutes(11),
+      endMinute: minutes(12),
+    },
+    {
+      id: "seed-entry-17",
+      courseCode: "CS-304",
+      teacherEmail: "hira.qureshi@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "201",
+      dayOfWeek: "THURSDAY",
+      startMinute: minutes(12),
+      endMinute: minutes(13),
+    },
+    {
+      id: "seed-entry-18",
+      courseCode: "CS-304",
+      teacherEmail: "hira.qureshi@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "201",
+      dayOfWeek: "FRIDAY",
+      startMinute: minutes(9),
+      endMinute: minutes(10),
+    },
+    {
+      id: "seed-entry-19",
+      courseCode: "CS-305",
+      teacherEmail: "farhan.iqbal@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "202",
+      dayOfWeek: "FRIDAY",
+      startMinute: minutes(10),
+      endMinute: minutes(11),
+    },
+    {
+      id: "seed-entry-20",
+      courseCode: "CS-305",
+      teacherEmail: "farhan.iqbal@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "203",
+      dayOfWeek: "FRIDAY",
+      startMinute: minutes(11),
+      endMinute: minutes(12),
+    },
+    {
+      id: "seed-entry-21",
+      courseCode: "CS-302",
+      teacherEmail: "nadia.raza@university.edu",
+      batchLabel: "BCS-7A",
+      roomNumber: "101",
+      dayOfWeek: "SATURDAY",
+      startMinute: minutes(9),
+      endMinute: minutes(10),
+    },
+    {
+      id: "seed-entry-22",
+      courseCode: "CS-303",
+      teacherEmail: "usman.tariq@university.edu",
+      batchLabel: "BCS-7B",
+      roomNumber: "103",
+      dayOfWeek: "SATURDAY",
+      startMinute: minutes(9),
+      endMinute: minutes(10),
+    },
+  ];
+
+  for (const entry of demoEntries) {
+    const courseId = courseIds.get(entry.courseCode);
+    const teacherId = teacherIds.get(entry.teacherEmail);
+    const batchId = batchIds.get(entry.batchLabel);
+    const roomId = roomIds.get(entry.roomNumber);
+
+    if (!courseId || !teacherId || !batchId || !roomId) {
+      throw new Error(`Seed entry ${entry.id} references missing data.`);
+    }
+
+    await prisma.timetableEntry.upsert({
+      where: { id: entry.id },
+      update: {
+        courseId,
+        teacherId,
+        batchId,
+        roomId,
+        dayOfWeek: entry.dayOfWeek,
+        startMinute: entry.startMinute,
+        endMinute: entry.endMinute,
+      },
+      create: {
+        id: entry.id,
+        courseId,
+        teacherId,
+        batchId,
+        roomId,
+        dayOfWeek: entry.dayOfWeek,
+        startMinute: entry.startMinute,
+        endMinute: entry.endMinute,
+      },
+    });
+  }
+
   const student = await prisma.user.findUnique({
     where: { email: "student@university.edu" },
     select: { id: true },
@@ -298,7 +698,9 @@ async function main() {
 
   console.log("Seed data is ready.");
   console.log(`Department: ${department.name} (${department.code})`);
-  console.log(`Batch: ${batch.name}-${batch.section}`);
+  console.log(
+    `Batches: ${batch.name}-${batch.section}, ${secondBatch.name}-${secondBatch.section}`,
+  );
   console.log(`Demo password: ${seedPassword}`);
   console.log("Accounts:");
   for (const demoUser of demoUsers) {
@@ -308,6 +710,9 @@ async function main() {
   }
   console.log(
     `Scholarships: ${demoScholarships.length} demo records (draft, active, closing soon, expired, archived).`,
+  );
+  console.log(
+    `Timetable: ${courseSeeds.length} courses, ${teacherSeeds.length} teachers, ${roomSeeds.length} rooms, ${demoEntries.length} conflict-free classes.`,
   );
 }
 

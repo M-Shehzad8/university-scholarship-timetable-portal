@@ -321,9 +321,10 @@ Implementation phases must re-check these rules on the server. The role matrix i
 
 - The initial migration is `prisma/migrations/20261106150000_init/migration.sql`.
 - The Phase 2 session table is added by `prisma/migrations/20261106190000_add_sessions/migration.sql`.
+- Phase 4 required no schema change: the timetable and room models, indexes, and check constraints were created in the initial migration.
 - Apply migrations with `npm run db:migrate` when PostgreSQL is available.
 - Every later schema change must be delivered as a committed migration.
-- `prisma/seed.ts` creates one CSE department, the `BCS-7A` batch, one coordinator, one staff account, one active student, and one inactive student. It is idempotent and uses `SEED_PASSWORD` from the environment.
+- `prisma/seed.ts` creates one CSE department, the `BCS-7A` and `BCS-7B` batches, one coordinator, one staff account, one active student, and one inactive student. It also creates five courses, five teachers, six rooms, and 22 conflict-free timetable rows across Monday to Saturday. It is idempotent and uses `SEED_PASSWORD` from the environment.
 - Seed data is local development data. It must not be inserted into production automatically.
 - Production starts with only the coordinator account created through a documented bootstrap step.
 

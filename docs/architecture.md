@@ -28,16 +28,16 @@ The application is one Next.js deployment and one PostgreSQL database. It is not
 
 ## 2. Application layers
 
-| Layer              | Location                              | Responsibility                                                           |
-| ------------------ | ------------------------------------- | ------------------------------------------------------------------------ |
-| Routes and layouts | `app/`                                | URL structure, page composition, metadata, loading and error states      |
-| Portal shell       | `components/portal/`                  | Sidebar, navigation, top bar, content frame, footer                      |
-| UI components      | `components/ui/`                      | Reusable cards, buttons, badges, forms, tables, alerts, and empty states |
-| Domain logic       | `lib/`                                | Conflict rules, room assignment, deadline state, authorization helpers   |
-| Authentication     | `lib/auth/`                           | Password hashing, sessions, guards, roles, and user-management actions   |
-| Data access        | `lib/db/`, `lib/auth/user-queries.ts` | Shared Prisma client and module query functions                          |
-| Database           | `prisma/`                             | Schema, migration history, and seed data                                 |
-| Validation         | `lib/validation/`                     | Server-side Zod schemas for every mutation                               |
+| Layer              | Location                             | Responsibility                                                           |
+| ------------------ | ------------------------------------ | ------------------------------------------------------------------------ |
+| Routes and layouts | `app/`                               | URL structure, page composition, metadata, loading and error states      |
+| Portal shell       | `components/portal/`                 | Sidebar, navigation, top bar, content frame, footer                      |
+| UI components      | `components/ui/`                     | Reusable cards, buttons, badges, forms, tables, alerts, and empty states |
+| Domain logic       | `lib/`                               | Conflict rules, room assignment, deadline state, authorization helpers   |
+| Authentication     | `lib/auth/`                          | Password hashing, sessions, guards, roles, and user-management actions   |
+| Data access        | `lib/db/`, `lib/<module>/queries.ts` | Shared Prisma client and module query functions                          |
+| Database           | `prisma/`                            | Schema, migration history, and seed data                                 |
+| Validation         | `lib/validation/`                    | Server-side Zod schemas for every mutation                               |
 
 Route handlers, server actions, and pages stay thin: validate input, check authorization, call shared domain logic, call a data-access function, and return a result. Business rules must not be copied into multiple screens.
 
@@ -73,8 +73,16 @@ app/
     │       ├── page.tsx       Detail, bookmark, and staff controls
     │       ├── edit/page.tsx  Staff-only edit form
     │       └── not-found.tsx  Friendly unavailable-record state
-    ├── timetable/page.tsx
-    ├── rooms/page.tsx
+    ├── timetable/
+    │   ├── page.tsx           Role-aware schedule: staff editor, coordinator read-only, student batch view
+    │   ├── new/page.tsx       Staff-only create form
+    │   ├── [id]/
+    │   │   ├── edit/page.tsx  Staff-only edit form
+    │   │   └── not-found.tsx  Friendly unavailable-class state
+    │   ├── courses/page.tsx   Staff CRUD, coordinator read-only
+    │   ├── teachers/page.tsx  Staff CRUD, coordinator read-only
+    │   └── batches/page.tsx   Staff CRUD, coordinator read-only
+    ├── rooms/page.tsx         Room CRUD and today's usage
     ├── reports/page.tsx
     └── users/page.tsx
 ```
@@ -113,7 +121,8 @@ The generated client is written to `lib/generated/prisma/` and ignored by Git. I
 - Schema and migrations live in `prisma/`.
 - The shared client lives in `lib/db/prisma.ts`.
 - Module reads live beside their module, for example `lib/scholarships/queries.ts`; module writes live in `lib/scholarships/actions.ts`.
-- Framework-free business rules live in `lib/scholarships/rules.ts` so pages, actions, and the seed script share one definition.
+- Framework-free business rules live in `lib/scholarships/rules.ts` and `lib/timetable/rules.ts` so pages, actions, and the seed script share one definition.
+- Shared calendar helpers live in `lib/time/portal.ts`; scholarship rules re-export them so existing imports keep one source of truth.
 - Pages do not build ad-hoc queries inline when the same query is needed elsewhere.
 - Mutations use a transaction when they change more than one related record.
 
@@ -139,13 +148,15 @@ Reads live in `lib/scholarships/queries.ts`, writes in `lib/scholarships/actions
 
 ### 6.2 Timetable module
 
-Responsibilities:
+Implemented in Phase 4:
 
-- Maintain courses, teachers, batches/sections, rooms, and timetable entries.
-- Reject teacher, batch, and room conflicts using one shared interval rule.
-- Assign the first free department room when automatic assignment is requested.
-- Provide batch, teacher, and today views.
-- Return an explicit no-room result instead of inventing a room.
+- Staff maintain courses, teachers, batches/sections, and rooms per department. Coordinators see the same reference data read-only.
+- The timetable page is a table-first schedule with batch, teacher, day, and today filters. Staff can add, edit, and delete rows; coordinators see the same schedule without mutation controls.
+- Students see only their linked batch timetable, with today's classes and the next class. A student without a batch receives an explicit explanation.
+- Every save re-checks teacher, batch, and room conflicts on the server using one shared interval rule.
+- Automatic room assignment is deterministic: department rooms are ordered by `roomNumber ASC, id ASC`, overlapping rooms are removed, and the first remaining room is assigned. If none remain, the action returns an explicit no-room result and writes nothing.
+- Deleting reference data is blocked while a timetable row uses it.
+- Room records show today's usage for each department room.
 
 The interval rule is:
 
@@ -155,7 +166,7 @@ AND
 existingEnd > newStart
 ```
 
-Class times are stored as minutes from midnight, so the comparison is deterministic and easy to test.
+Class times are stored as minutes from midnight, so the comparison is deterministic and easy to test. Reads live in `lib/timetable/queries.ts`, mutations in `lib/timetable/actions.ts`, rules in `lib/timetable/rules.ts`, and validation in `lib/validation/timetable.ts`. Phase 4 does not create timetable notifications; those remain Phase 5 work.
 
 ### 6.3 Authentication and authorization
 
@@ -190,6 +201,8 @@ Phase 3 creates two notification types as side effects of scholarship actions:
 
 - `SCHOLARSHIP_PUBLISHED` for every active student when a record is published.
 - `SCHOLARSHIP_EXPIRED` for every student who saved the record when staff explicitly expire it.
+
+Phase 4 timetable changes do not create notifications. `TIMETABLE_CHANGED`, `ROOM_ASSIGNED`, and `TIMETABLE_CONFLICT` remain available enum values for Phase 5.
 
 A notification failure is logged but does not roll back the scholarship change. The notification centre, read state, and badge count are Phase 5 work.
 

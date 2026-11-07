@@ -1,25 +1,34 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
+import { NoDepartmentNotice } from "@/components/timetable/no-department-notice";
+import { StaffTimetableManager } from "@/components/timetable/staff-timetable-manager";
+import { StudentTimetable } from "@/components/timetable/student-timetable";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { buttonStyles } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { requireUser } from "@/lib/auth/dal";
+import {
+  entryNoticeMessages,
+  entryProblemMessages,
+} from "@/lib/timetable/messages";
+import {
+  getReferenceData,
+  getStudentTimetableEntries,
+  getTimetableEntries,
+  getTimetableStats,
+} from "@/lib/timetable/queries";
+import {
+  DAY_LABELS,
+  getPortalDayOfWeek,
+  getPortalMinutes,
+  isTimetableDay,
+  type TimetableDay,
+} from "@/lib/timetable/rules";
+import { buildNewEntryHref, buildTimetableHref } from "@/lib/timetable/urls";
 
 export const metadata: Metadata = {
   title: "Timetable",
@@ -27,155 +36,197 @@ export const metadata: Metadata = {
 
 export const instant = false;
 
-const assignmentSteps = [
-  "Load the rooms that belong to the selected batch's department.",
-  "Remove rooms with an overlapping class in the selected interval.",
-  "Choose the first remaining room in ascending room-number order.",
-  "Return the selected room, or a clear no-room-available result.",
-];
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-export default async function TimetablePage() {
-  await requireUser();
+function first(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function TimetablePage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const user = await requireUser();
+  const todayDay = getPortalDayOfWeek();
+
+  if (user.role === "STUDENT") {
+    const header = (
+      <PageHeader
+        eyebrow="Academic module"
+        title="My timetable"
+        description={
+          user.batch
+            ? `The weekly class schedule for ${user.batch.name}-${user.batch.section}. Only your linked batch is shown.`
+            : "Your account is not linked to a batch, so no class schedule is available."
+        }
+        actions={<Badge tone="success">Student view</Badge>}
+      />
+    );
+
+    if (!user.batch) {
+      return (
+        <div className="space-y-8">
+          {header}
+          <Card>
+            <EmptyState
+              title="No batch linked"
+              description="Ask the coordinator to link your student account to a batch or section. The timetable is scoped to one batch."
+              className="py-12"
+            />
+          </Card>
+        </div>
+      );
+    }
+
+    const entries = await getStudentTimetableEntries(user.batch.id);
+
+    return (
+      <div className="space-y-8">
+        {header}
+        <StudentTimetable
+          entries={entries}
+          batchLabel={`${user.batch.name}-${user.batch.section}`}
+          todayDay={todayDay}
+          todayMinutes={getPortalMinutes()}
+        />
+      </div>
+    );
+  }
+
+  const canManage = user.role === "STAFF";
+  const params = await searchParams;
+
+  if (!user.department) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          eyebrow="Academic module"
+          title="Timetable"
+          description="Department schedules, conflict checks, and automatic room assignment."
+          actions={canManage ? null : <Badge tone="warning">Read-only</Badge>}
+        />
+        <NoDepartmentNotice />
+      </div>
+    );
+  }
+
+  const { courses, batches, teachers, rooms } = await getReferenceData(
+    user.department.id,
+  );
+  const stats = await getTimetableStats(user.department.id, todayDay);
+
+  const requestedBatch = first(params.batch) ?? "";
+  const requestedTeacher = first(params.teacher) ?? "";
+  const requestedDay = first(params.day) ?? "";
+
+  const validBatch = batches.some((batch) => batch.id === requestedBatch)
+    ? requestedBatch
+    : "";
+  const validTeacher = teachers.some(
+    (teacher) => teacher.id === requestedTeacher,
+  )
+    ? requestedTeacher
+    : "";
+  const validDay =
+    requestedDay === "today" || isTimetableDay(requestedDay)
+      ? requestedDay
+      : "";
+
+  const dayOfWeek: TimetableDay | undefined =
+    validDay === "today"
+      ? todayDay
+      : validDay && isTimetableDay(validDay)
+        ? validDay
+        : undefined;
+
+  const entries = await getTimetableEntries({
+    departmentId: user.department.id,
+    batchId: validBatch || undefined,
+    teacherId: validTeacher || undefined,
+    dayOfWeek,
+  });
+
+  const filters = {
+    batchId: validBatch,
+    teacherId: validTeacher,
+    day: validDay,
+  };
+  const returnTo = buildTimetableHref(filters);
+  const newEntryDay = validDay && validDay !== "today" ? validDay : todayDay;
+  const newEntryHref = buildNewEntryHref(returnTo, newEntryDay);
+
+  const notice = first(params.notice);
+  const problem = first(params.problem);
+  const assignedRoom = first(params.room);
+  const assistant = first(params.assigned);
+  const noticeMessage = notice ? entryNoticeMessages[notice] : undefined;
+  const problemMessage = problem ? entryProblemMessages[problem] : undefined;
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Academic module"
         title="Timetable"
-        description="A table-oriented schedule for staff, with teacher, batch, and room conflict checks and a deterministic automatic room-assignment step."
-        actions={<Badge tone="info">Phase 4 implementation</Badge>}
+        description={
+          canManage
+            ? "Maintain the department schedule with table-first entry, server-side conflict checks, and deterministic automatic room assignment."
+            : "Review the department schedule by batch, teacher, and day. Timetable maintenance is limited to staff accounts."
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {canManage ? (
+              <Link
+                href={newEntryHref}
+                className={buttonStyles({ variant: "primary", size: "md" })}
+              >
+                Add class
+              </Link>
+            ) : null}
+            <Badge tone={canManage ? "info" : "warning"}>
+              {canManage ? "Staff editor" : "Read-only"}
+            </Badge>
+          </div>
+        }
       />
 
-      <Alert title="The schedule is intentionally empty until Phase 4.">
-        The data model, conflict rule, room-assignment rule, and interface
-        structure are finalised. Course, teacher, batch, and room management
-        plus the editable timetable arrive in Phase 4.
-      </Alert>
+      {noticeMessage ? (
+        <Alert tone="success" title="Timetable updated">
+          {noticeMessage}
+          {assignedRoom && (notice === "created" || notice === "updated")
+            ? ` Room ${assignedRoom}${assistant === "auto" ? " was assigned automatically." : " is assigned."}`
+            : null}
+        </Alert>
+      ) : null}
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Schedule preview</CardTitle>
-              <CardDescription>
-                Staff will enter and edit rows in a compact table rather than a
-                complex scheduling workflow.
-              </CardDescription>
-            </div>
-            <Badge tone="neutral">Weekly view</Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="px-0 pb-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Course</TableHead>
-                <TableHead>Batch</TableHead>
-                <TableHead>Teacher</TableHead>
-                <TableHead>Day</TableHead>
-                <TableHead>Start</TableHead>
-                <TableHead>End</TableHead>
-                <TableHead>Room</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <tr>
-                <TableCell colSpan={7} className="p-0">
-                  <EmptyState
-                    title="No timetable entries yet"
-                    description="The first saved class will appear here after staff create courses, batches, teachers, and rooms."
-                    className="py-10"
-                  />
-                </TableCell>
-              </tr>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {problemMessage ? (
+        <Alert tone="error" title="Timetable action blocked">
+          {problemMessage}
+        </Alert>
+      ) : null}
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle>Conflict checks</CardTitle>
-              <Badge tone="success">Before every save</Badge>
-            </div>
-            <CardDescription>
-              The same rule is applied to the teacher, the batch, and the room.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm leading-6 text-zinc-700 dark:text-zinc-300">
-              A new class is rejected when an existing class on the same day has
-              an interval that overlaps the requested interval.
-            </p>
-            <pre className="overflow-x-auto rounded-lg bg-zinc-950 p-4 font-mono text-xs leading-6 text-zinc-100">
-              <code>{`existingStart < newEnd
-AND
-existingEnd > newStart`}</code>
-            </pre>
-            <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-              Times are stored as minutes from midnight, so the rule is a simple
-              integer comparison with no time-zone ambiguity.
-            </p>
-          </CardContent>
-        </Card>
+      <StaffTimetableManager
+        entries={entries}
+        batches={batches}
+        teachers={teachers}
+        filters={filters}
+        stats={stats}
+        referenceCounts={{
+          courses: courses.length,
+          teachers: teachers.length,
+          batches: batches.length,
+          rooms: rooms.length,
+        }}
+        canManage={canManage}
+        todayDay={todayDay}
+        newEntryHref={newEntryHref}
+        returnTo={returnTo}
+      />
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle>Automatic room assignment</CardTitle>
-              <Badge tone="warning">Deterministic</Badge>
-            </div>
-            <CardDescription>
-              No optimisation, scoring, or AI scheduling is used.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ol className="space-y-3">
-              {assignmentSteps.map((step, index) => (
-                <li
-                  key={step}
-                  className="flex gap-3 text-sm leading-6 text-zinc-700 dark:text-zinc-300"
-                >
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                    {index + 1}
-                  </span>
-                  {step}
-                </li>
-              ))}
-            </ol>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-5 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle>Batch view</CardTitle>
-            <CardDescription>
-              Students and staff can review a full section timetable.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Teacher view</CardTitle>
-            <CardDescription>
-              Staff can inspect a teacher&apos;s weekly load and catch clashes.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Today view</CardTitle>
-            <CardDescription>
-              The dashboard and timetable provide a focused view of today&apos;s
-              classes.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        {DAY_LABELS[todayDay]} is the current portal day. Times are stored as
+        minutes from midnight and compared with half-open intervals.
+      </p>
     </div>
   );
 }

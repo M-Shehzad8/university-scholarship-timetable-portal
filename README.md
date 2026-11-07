@@ -76,7 +76,7 @@ The project is intentionally scoped as a student academic services portal, not a
 
 All demo accounts use the `SEED_PASSWORD` value. Change it before seeding any shared or non-demo environment. Seeding never runs automatically in production.
 
-The seed also creates seven demo scholarships covering published, closing-soon, expired-by-date, draft, archived, and explicitly expired records, plus two bookmarks for the student account. Re-running the seed is idempotent.
+The seed also creates seven demo scholarships covering published, closing-soon, expired-by-date, draft, archived, and explicitly expired records, plus two bookmarks for the student account. It also creates two batches (`BCS-7A`, `BCS-7B`), five courses, five teachers, six rooms, and 22 conflict-free timetable rows across Monday to Saturday. Re-running the seed is idempotent.
 
 ## Scholarships
 
@@ -87,6 +87,17 @@ The seed also creates seven demo scholarships covering published, closing-soon, 
 - Staff and coordinators can create drafts, edit any record, publish, archive, mark expired, and delete. Deleting a record also deletes its bookmarks.
 - Publishing a record with a past deadline is rejected. Students active at publication receive a notification row; explicitly expiring a record notifies the students who saved it.
 - The portal links to the provider's official application page and never submits an application.
+
+## Timetable
+
+- Staff maintain courses, teachers, batches/sections, and rooms for their own department. Reference records used by a class cannot be deleted.
+- Staff create, edit, and delete timetable rows in a table-first UI. A class stores the weekday, start minute, and exclusive end minute.
+- Every save checks teacher, batch, and room conflicts on the server using the same overlap rule: `existingStart < newEnd AND existingEnd > newStart`, for the same day. The row being edited is excluded from its own check.
+- The room field defaults to automatic assignment. The server orders department rooms by room number, removes rooms with an overlapping class, and assigns the first free room. If no room is free, the class is not saved and the form explains why.
+- Staff and coordinators can filter the department timetable by batch, teacher, day, or today. Coordinators have a read-only view.
+- Students see only the timetable for their linked batch, including today's classes and the next scheduled class.
+- Room records show today's usage so staff can see which spaces are occupied.
+- Timetable notifications are Phase 5 work; Phase 4 records no notifications.
 
 ## Available scripts
 
@@ -113,12 +124,14 @@ fyp-project/
 ├── app/                 # App Router routes, layouts, and global styles
 │   ├── login/           # Public login page and form
 │   └── (portal)/        # Authenticated portal shell and module pages
-├── components/          # Portal shell, scholarship UI, and reusable UI parts
+├── components/          # Portal shell, scholarship and timetable UI, reusable UI parts
 ├── lib/                 # Domain utilities, auth, validation, and database access
 │   ├── auth/            # Sessions, passwords, guards, roles, and user actions
 │   ├── db/              # Shared Prisma client
 │   ├── generated/       # Generated Prisma client (ignored by Git)
 │   ├── scholarships/    # Scholarship rules, queries, actions, and URL builders
+│   ├── timetable/       # Timetable rules, queries, actions, URLs, and messages
+│   ├── time/            # Shared portal calendar helpers
 │   └── validation/      # Server-side Zod schemas
 ├── prisma/              # Schema, migrations, and seed data
 ├── public/              # Static assets
@@ -157,6 +170,8 @@ Only variables intended for the browser should use the `NEXT_PUBLIC_` prefix. Al
 
 ## Status
 
-Phase 3 is complete. Authentication, database-backed sessions, bcrypt password hashing, role guards, protected portal routes, role-aware navigation, role-specific dashboards, coordinator user management, and the full scholarship module are in place. The timetable module remains an honest placeholder until Phase 4.
+Phase 4 is complete. Authentication, database-backed sessions, bcrypt password hashing, role guards, protected portal routes, role-aware navigation, role-specific dashboards, coordinator user management, the scholarship module, and the timetable module are in place. Phase 5 will connect live dashboard values, notifications, and reports.
 
 Verified Phase 3 flows include student search/filter/saved views, draft and archived detail protection, bookmark save/remove/cascade, staff create/edit/publish/archive/expire/delete, past-deadline publication rejection, field-level validation errors, and publication/expiry notification rows.
+
+Verified Phase 4 flows include course/teacher/batch/room create, edit, duplicate rejection, and in-use delete protection; timetable row create/edit/delete; teacher, batch, and room overlap rejection; automatic room assignment in room-number order; the explicit no-room response; staff/coordinator/student access boundaries; and student batch scoping.
